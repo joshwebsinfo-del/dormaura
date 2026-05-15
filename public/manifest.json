@@ -1,0 +1,13 @@
+{
+  "name": "GlassNest",
+  "short_name": "GlassNest",
+  "description": "Private digital ecosystem for boarding house students",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050508",
+  "theme_color": "#050508",
+  "orientation": "portrait",
+  "icons": [],
+  "screenshots": [],
+  "categories": ["social", "lifestyle"]
+}
