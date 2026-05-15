@@ -33,7 +33,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && url.pathname === "/auth") {
+  if (user && (url.pathname === "/auth" || url.pathname === "/")) {
     url.pathname = "/home";
     return NextResponse.redirect(url);
   }
