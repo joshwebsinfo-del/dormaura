@@ -6,6 +6,11 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/home";
 
+  // Resolve true public origin when behind Render's reverse proxy
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") ?? "https";
+  const publicOrigin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : origin;
+
   if (code) {
     const supabase = await createClient();
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
@@ -28,9 +33,9 @@ export async function GET(request: Request) {
         { onConflict: "id", ignoreDuplicates: false }
       );
 
-      return NextResponse.redirect(`${origin}${next}`);
+      return NextResponse.redirect(`${publicOrigin}${next}`);
     }
   }
 
-  return NextResponse.redirect(`${origin}/auth?error=auth_failed`);
+  return NextResponse.redirect(`${publicOrigin}/auth?error=auth_failed`);
 }
