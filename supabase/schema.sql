@@ -508,10 +508,43 @@ CREATE TRIGGER on_auth_user_created
 -- Set all to PUBLIC
 
 -- ============================================================
+-- STORAGE BUCKETS SETUP
+-- ============================================================
+-- Run this in SQL Editor to automatically initialize all public buckets
+-- and grant appropriate upload & read permissions.
+-- Buckets: avatars, post-images, marketplace, lost-found, reels
+
+-- ============================================================
+-- DAILY STORIES (Expires in 25 hours)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.stories (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  content TEXT,
+  image_url TEXT,
+  bg_gradient TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '25 hours')
+);
+
+-- Enable RLS on stories
+ALTER TABLE public.stories ENABLE ROW LEVEL SECURITY;
+
+-- Stories RLS Policies
+CREATE POLICY "Stories are viewable by authenticated" ON public.stories
+  FOR SELECT TO authenticated USING (expires_at > NOW());
+
+CREATE POLICY "Users can create stories" ON public.stories
+  FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own stories" ON public.stories
+  FOR DELETE TO authenticated USING (auth.uid() = user_id);
+
+-- ============================================================
 -- REALTIME
 -- ============================================================
 -- Enable realtime on these tables in Supabase Dashboard:
--- posts, channel_messages, direct_messages, knock_notifications
+-- posts, channel_messages, direct_messages, knock_notifications, stories
 -- Or run:
 ALTER PUBLICATION supabase_realtime ADD TABLE posts;
 ALTER PUBLICATION supabase_realtime ADD TABLE channel_messages;
@@ -520,3 +553,4 @@ ALTER PUBLICATION supabase_realtime ADD TABLE knock_notifications;
 ALTER PUBLICATION supabase_realtime ADD TABLE who_has_requests;
 ALTER PUBLICATION supabase_realtime ADD TABLE notices;
 ALTER PUBLICATION supabase_realtime ADD TABLE reel_comments;
+ALTER PUBLICATION supabase_realtime ADD TABLE stories;
