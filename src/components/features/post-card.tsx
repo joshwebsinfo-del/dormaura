@@ -33,6 +33,16 @@ export function PostCard({ post }: PostCardProps) {
       await supabase.from("likes").delete().match({ post_id: post.id, user_id: user.id });
     } else {
       await supabase.from("likes").insert({ post_id: post.id, user_id: user.id });
+      if (post.user_id !== user.id) {
+        await supabase.from("notifications").insert({
+          user_id: post.user_id,
+          actor_id: user.id,
+          type: "like",
+          title: "Liked your post",
+          content: `${user.full_name} liked your post: "${post.content.slice(0, 35)}${post.content.length > 35 ? "..." : ""}"`,
+          link: "/home"
+        });
+      }
     }
     queryClient.invalidateQueries({ queryKey: ["feed"] });
   };
@@ -40,11 +50,22 @@ export function PostCard({ post }: PostCardProps) {
   const handleComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!comment.trim() || !user) return;
+    const cleanComment = comment.trim();
     await supabase.from("comments").insert({
       post_id: post.id,
       user_id: user.id,
-      content: comment.trim(),
+      content: cleanComment,
     });
+    if (post.user_id !== user.id) {
+      await supabase.from("notifications").insert({
+        user_id: post.user_id,
+        actor_id: user.id,
+        type: "comment",
+        title: "Commented on your post",
+        content: `${user.full_name} commented: "${cleanComment.slice(0, 35)}${cleanComment.length > 35 ? "..." : ""}"`,
+        link: "/home"
+      });
+    }
     setComment("");
     queryClient.invalidateQueries({ queryKey: ["feed"] });
   };

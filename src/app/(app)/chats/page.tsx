@@ -283,6 +283,30 @@ export default function ChatsPage() {
       toast.error("Failed to send direct message");
     } else {
       queryClient.invalidateQueries({ queryKey: ["direct_messages", activeRecipient.id] });
+      
+      // Determine what content to show in the notification
+      let displayContent = "Sent you a message";
+      if (dmType === "text") {
+        displayContent = payload;
+      } else if (dmType === "whisper") {
+        displayContent = "🕵️ Sent you a vanishing whisper message";
+      } else if (dmType === "borrow") {
+        try {
+          const parsed = JSON.parse(payload);
+          displayContent = `🤝 Requested to borrow: "${parsed.item}"`;
+        } catch {
+          displayContent = "🤝 Requested to borrow an item";
+        }
+      }
+
+      await supabase.from("notifications").insert({
+        user_id: activeRecipient.id,
+        actor_id: user.id,
+        type: "dm",
+        title: "New Direct Message 💬",
+        content: displayContent.length > 50 ? `${displayContent.slice(0, 50)}...` : displayContent,
+        link: `/chats?userId=${user.id}`,
+      });
     }
   };
 

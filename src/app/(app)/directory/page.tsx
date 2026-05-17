@@ -128,7 +128,16 @@ function StudentCard({
       from_user_id: currentUser.id,
       to_user_id: student.id,
       room_number: student.room_number,
-    }).then(() => {});
+    }).then(async () => {
+      await supabase.from("notifications").insert({
+        user_id: student.id,
+        actor_id: currentUser.id,
+        type: "knock",
+        title: "Knocked on your door! 🚪",
+        content: `${currentUser.full_name} is knocking on Room ${student.room_number}`,
+        link: "/directory"
+      });
+    });
 
     toast.success(`Knocked on Room ${student.room_number}! 🚪`);
 

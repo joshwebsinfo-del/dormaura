@@ -197,8 +197,16 @@ export default function LiveCallPage() {
     try {
       toast.loading("Getting your camera & mic...", { id: "media" });
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 360 },
+          frameRate: { ideal: 24 }
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        },
       });
       toast.dismiss("media");
 
