@@ -62,6 +62,18 @@ export default function ChatsPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const getMessageSnippet = (content: string) => {
+    try {
+      if (content.startsWith("{")) {
+        const parsed = JSON.parse(content);
+        if (parsed.type === "whisper") return "🔥 Secret Whisper";
+        if (parsed.type === "borrow") return `🤝 Borrow: ${parsed.item}`;
+      }
+    } catch (e) {}
+    return content.length > 25 ? content.substring(0, 25) + "..." : content;
+  };
+
+
   // Handle URL search param to auto-switch to Personal chat
   useEffect(() => {
     const userId = searchParams.get("userId");
@@ -113,7 +125,42 @@ export default function ChatsPage() {
     },
   });
 
-  // Fetch Direct Messages
+  // Fetch all DMs involving the current user to build the "Active Chats" list
+  const { data: allDmsForActiveChats } = useQuery({
+    queryKey: ["active_chat_messages", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("direct_messages")
+        .select(`
+          *,
+          sender:users!sender_id(id, full_name, profile_photo, room_number),
+          receiver:users!receiver_id(id, full_name, profile_photo, room_number)
+        `)
+        .or(`sender_id.eq.${user!.id},receiver_id.eq.${user!.id}`)
+        .order("created_at", { ascending: false });
+      return data as DirectMessage[];
+    }
+  });
+
+  // Group direct messages by other user for the active threads section
+  const activeChats: Array<{ user: { id: string; full_name: string; profile_photo: string; room_number: string }; lastMessage: DirectMessage }> = [];
+  if (allDmsForActiveChats && user) {
+    const seenUsers = new Set<string>();
+    for (const msg of allDmsForActiveChats) {
+      const otherUser = msg.sender_id === user.id ? msg.receiver : msg.sender;
+      if (!otherUser) continue;
+      if (!seenUsers.has(otherUser.id)) {
+        seenUsers.add(otherUser.id);
+        activeChats.push({
+          user: otherUser as any,
+          lastMessage: msg,
+        });
+      }
+    }
+  }
+
+  // Fetch Direct Messages for active recipient
   const { data: directMessages, isLoading: dmsLoading } = useQuery({
     queryKey: ["direct_messages", activeRecipient?.id],
     enabled: activeTab === "personal" && !!activeRecipient?.id && !!user?.id,
@@ -151,25 +198,28 @@ export default function ChatsPage() {
     };
   }, [activeChannel, queryClient, supabase, activeTab]);
 
-  // Realtime subscription for DMs
+  // Realtime subscription for direct messages (global so you get updates in real time)
   useEffect(() => {
-    if (!user || activeTab !== "personal" || !activeRecipient) return;
+    if (!user) return;
 
-    const dmChannel = supabase
-      .channel(`dms:${user.id}:${activeRecipient.id}`)
+    const globalDmsChannel = supabase
+      .channel("global_dms")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "direct_messages" },
+        { event: "*", schema: "public", table: "direct_messages" },
         () => {
-          queryClient.invalidateQueries({ queryKey: ["direct_messages", activeRecipient.id] });
+          queryClient.invalidateQueries({ queryKey: ["active_chat_messages", user.id] });
+          if (activeRecipient) {
+            queryClient.invalidateQueries({ queryKey: ["direct_messages", activeRecipient.id] });
+          }
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(dmChannel);
+      supabase.removeChannel(globalDmsChannel);
     };
-  }, [activeRecipient, queryClient, supabase, activeTab, user]);
+  }, [activeRecipient, queryClient, supabase, user]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -349,33 +399,89 @@ export default function ChatsPage() {
       </div>
 
       {/* Main chat window container */}
-      <div className="flex-1 flex overflow-hidden">
-        
         {/* If Personal Tab: Left Column selector for users */}
         {activeTab === "personal" && (
-          <div className="w-64 border-r border-white/5 bg-black/20 overflow-y-auto hidden md:block shrink-0">
-            <div className="p-3 text-[10px] uppercase font-bold text-white/30 tracking-wider">Residents</div>
-            <div className="space-y-1 px-2">
-              {filteredResidents?.map((r) => (
+          <div className="w-64 border-r border-white/5 bg-black/20 overflow-y-auto hidden md:flex flex-col shrink-0">
+            {/* Active Chats Section */}
+            <div className="p-3 text-[10px] uppercase font-bold text-cyan-400 tracking-wider flex items-center justify-between border-b border-white/5">
+              <span>Active Chats</span>
+              {activeChats.length > 0 && <span className="bg-cyan-500/20 px-1.5 py-0.5 rounded text-[8px] text-cyan-300 font-bold">{activeChats.length}</span>}
+            </div>
+            
+            <div className="flex-1 overflow-y-auto space-y-1 p-2">
+              {activeChats.length === 0 ? (
+                <div className="py-8 px-4 text-center text-white/30 text-[11px] leading-relaxed">
+                  <p>No active chats yet.</p>
+                  <p className="mt-1 text-[10px]">Tap a roommate from the carousel to start!</p>
+                </div>
+              ) : (
+                activeChats.map(({ user: r, lastMessage: msg }) => {
+                  const isSelected = activeRecipient?.id === r.id;
+                  const snippet = getMessageSnippet(msg.content);
+                  const isUnread = !msg.read && msg.sender_id === r.id;
+                  
+                  return (
+                    <button
+                      key={r.id}
+                      onClick={() => setActiveRecipient(r as any)}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all text-left relative group ${
+                        isSelected 
+                          ? "bg-cyan-500/10 border border-cyan-500/20 text-white" 
+                          : "text-white/60 hover:text-white hover:bg-white/5 border border-transparent"
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-white/10 bg-white/5 p-0.5">
+                        {r.profile_photo ? (
+                          <Image src={r.profile_photo} alt="" width={32} height={32} className="w-full h-full object-cover rounded-md" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center font-bold text-xs text-white/40">{r.full_name?.charAt(0)}</div>
+                        )}
+                      </div>
+                      
+                      <div className="min-w-0 flex-1">
+                        <div className="flex justify-between items-baseline mb-0.5">
+                          <p className="text-xs font-semibold truncate leading-none mb-0.5">{r.full_name}</p>
+                          <span className="text-[8px] text-white/20 shrink-0 font-medium">{formatTimeAgo(msg.created_at)}</span>
+                        </div>
+                        <p className={`text-[10px] truncate leading-none ${isUnread ? "text-cyan-400 font-semibold" : "text-white/30"}`}>
+                          {snippet}
+                        </p>
+                      </div>
+
+                      {isUnread && (
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-md shadow-cyan-500/50" />
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Other Roommates list */}
+            <div className="p-3 text-[10px] uppercase font-bold text-white/30 tracking-wider border-t border-white/5">
+              More Roommates
+            </div>
+            <div className="h-48 overflow-y-auto space-y-1 px-2 pb-4">
+              {filteredResidents?.filter(r => !activeChats.some(ac => ac.user.id === r.id)).map((r) => (
                 <button
                   key={r.id}
                   onClick={() => setActiveRecipient(r)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all text-left ${
+                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all text-left ${
                     activeRecipient?.id === r.id 
-                      ? "bg-white/10 border border-white/10 text-white" 
-                      : "text-white/60 hover:text-white hover:bg-white/5"
+                      ? "bg-white/10 text-white" 
+                      : "text-white/50 hover:text-white hover:bg-white/5"
                   }`}
                 >
-                  <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-white/10 bg-white/5">
+                  <div className="w-6 h-6 rounded overflow-hidden shrink-0 border border-white/5 bg-white/5 flex items-center justify-center text-[10px] text-white/40">
                     {r.profile_photo ? (
-                      <Image src={r.profile_photo} alt="" width={32} height={32} className="w-full h-full object-cover" />
+                      <Image src={r.profile_photo} alt="" width={24} height={24} className="w-full h-full object-cover" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center font-bold text-xs text-white/40">{r.full_name?.charAt(0)}</div>
+                      <span>{r.full_name?.charAt(0)}</span>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold truncate leading-none mb-0.5">{r.full_name}</p>
-                    <p className="text-[10px] text-white/30 truncate leading-none">Room {r.room_number}</p>
+                    <p className="text-[11px] font-medium truncate leading-none mb-0.5">{r.full_name}</p>
+                    <p className="text-[8px] text-white/25 leading-none">Room {r.room_number}</p>
                   </div>
                 </button>
               ))}
@@ -414,6 +520,30 @@ export default function ChatsPage() {
                         </div>
                       )}
 
+
+                  
+                  // Parse message type (Whisper, Borrow or Text)
+                  let isJson = false;
+                  let parsed: any = null;
+                  try {
+                    if (msg.content.startsWith("{")) {
+                      parsed = JSON.parse(msg.content);
+                      isJson = true;
+                    }
+                  } catch (e) {}
+
+                  return (
+                    <div key={msg.id} className={`flex gap-3 ${isMe ? "flex-row-reverse" : ""}`}>
+                      {!isMe && (
+                        <div className="w-8 h-8 shrink-0 rounded-full overflow-hidden bg-white/10 flex items-center justify-center">
+                          {activeRecipient.profile_photo ? (
+                            <Image src={activeRecipient.profile_photo} alt="" width={32} height={32} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-xs font-bold text-white/50">{activeRecipient.full_name?.charAt(0)}</span>
+                          )}
+                        </div>
+                      )}
+
                       <div className={`flex flex-col ${isMe ? "items-end" : "items-start"} max-w-[75%]`}>
                         {!isMe && showAvatar && (
                           <span className="text-[10px] text-white/40 mb-1 ml-1 flex items-center gap-1">
@@ -443,17 +573,51 @@ export default function ChatsPage() {
                 <div className="flex flex-col items-center justify-center h-full text-white/40 gap-3 p-6 text-center">
                   <div className="text-4xl mb-2">💬</div>
                   <h3 className="text-white font-bold">Your Personal Workspace</h3>
-                  <p className="text-sm text-white/50 max-w-xs">Select roommate from directory or residents tab on the left to start high-bandwidth direct messaging, secret whispers, or borrow requests.</p>
+                  <p className="text-xs text-white/50 max-w-xs mb-3">Select roommate from the active chats list below, the horizontal carousel above, or use the search bar to find someone.</p>
                   
-                  {/* Quick select list on mobile */}
-                  <div className="w-full max-w-sm mt-4 md:hidden text-left bg-white/5 border border-white/10 rounded-2xl p-3">
-                    <p className="text-[10px] font-bold text-white/40 uppercase mb-2">Residents List</p>
-                    <div className="space-y-1 max-h-48 overflow-y-auto">
-                      {filteredResidents?.map((r) => (
-                        <button key={r.id} onClick={() => setActiveRecipient(r)} className="w-full text-left p-2 rounded-xl text-xs text-white/70 hover:bg-white/10">
-                          {r.full_name} (Room {r.room_number})
-                        </button>
-                      ))}
+                  {/* Active chats list on mobile */}
+                  <div className="w-full max-w-sm text-left bg-white/5 border border-white/10 rounded-3xl p-4 shadow-xl">
+                    <p className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider mb-2.5 pb-1 border-b border-white/5 flex justify-between items-center">
+                      <span>Active Conversation Threads</span>
+                      {activeChats.length > 0 && <span className="bg-cyan-500/20 px-1 py-0.5 rounded text-[8px] text-cyan-300 font-bold">{activeChats.length}</span>}
+                    </p>
+                    <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                      {activeChats.length === 0 ? (
+                        <p className="text-[11px] text-white/20 italic py-4 text-center">No active chats. Start one by tapping roommate avatars above!</p>
+                      ) : (
+                        activeChats.map(({ user: r, lastMessage: msg }) => {
+                          const snippet = getMessageSnippet(msg.content);
+                          const isUnread = !msg.read && msg.sender_id === r.id;
+                          
+                          return (
+                            <button 
+                              key={r.id} 
+                              onClick={() => setActiveRecipient(r as any)} 
+                              className="w-full flex items-center gap-2.5 p-2 rounded-xl text-xs text-white/70 hover:bg-white/10 transition-colors relative text-left"
+                            >
+                              <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-white/5 bg-white/5">
+                                {r.profile_photo ? (
+                                  <Image src={r.profile_photo} alt="" width={32} height={32} className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center font-bold text-xs text-white/40">{r.full_name?.charAt(0)}</div>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex justify-between items-baseline mb-0.5">
+                                  <p className="font-semibold truncate text-[11px] text-white leading-none mb-0.5">{r.full_name}</p>
+                                  <span className="text-[8px] text-white/20 font-medium shrink-0">{formatTimeAgo(msg.created_at)}</span>
+                                </div>
+                                <p className={`text-[10px] truncate leading-none ${isUnread ? "text-cyan-400 font-semibold" : "text-white/40"}`}>
+                                  {snippet}
+                                </p>
+                              </div>
+                              {isUnread && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse shrink-0 ml-1" />
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
                     </div>
                   </div>
                 </div>
@@ -469,30 +633,7 @@ export default function ChatsPage() {
                 directMessages?.map((msg, i) => {
                   const isMe = msg.sender_id === user?.id;
                   const showAvatar = i === directMessages.length - 1 || directMessages[i + 1].sender_id !== msg.sender_id;
-                  
-                  // Parse message type (Whisper, Borrow or Text)
-                  let isJson = false;
-                  let parsed: any = null;
-                  try {
-                    if (msg.content.startsWith("{")) {
-                      parsed = JSON.parse(msg.content);
-                      isJson = true;
-                    }
-                  } catch (e) {}
 
-                  return (
-                    <div key={msg.id} className={`flex gap-3 ${isMe ? "flex-row-reverse" : ""}`}>
-                      {!isMe && (
-                        <div className="w-8 h-8 shrink-0 rounded-full overflow-hidden bg-white/10 flex items-center justify-center">
-                          {activeRecipient.profile_photo ? (
-                            <Image src={activeRecipient.profile_photo} alt="" width={32} height={32} className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="text-xs font-bold text-white/50">{activeRecipient.full_name?.charAt(0)}</span>
-                          )}
-                        </div>
-                      )}
-
-                      <div className={`flex flex-col ${isMe ? "items-end" : "items-start"} max-w-[75%]`}>
                         {isJson && parsed.type === "whisper" ? (
                           // A. WHISPER (Vanishing Message Bubble)
                           <WhisperBubble text={parsed.text} expiresAt={parsed.expiresAt} isMe={isMe} />

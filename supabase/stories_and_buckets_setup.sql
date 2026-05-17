@@ -85,3 +85,45 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE stories;
   END IF;
 END $$;
+
+-- 5. Create Live Streams Table
+CREATE TABLE IF NOT EXISTS public.live_streams (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  host_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  room_name VARCHAR(255) DEFAULT 'dorm-house-call' NOT NULL,
+  is_active BOOLEAN DEFAULT TRUE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  ended_at TIMESTAMPTZ
+);
+
+-- Enable RLS
+ALTER TABLE public.live_streams ENABLE ROW LEVEL SECURITY;
+
+-- Live Streams RLS Policies
+DROP POLICY IF EXISTS "Live streams viewable by everyone" ON public.live_streams;
+CREATE POLICY "Live streams viewable by everyone" ON public.live_streams
+  FOR SELECT TO authenticated USING (is_active = true);
+
+DROP POLICY IF EXISTS "Users can insert active live stream" ON public.live_streams;
+CREATE POLICY "Users can insert active live stream" ON public.live_streams
+  FOR INSERT TO authenticated WITH CHECK (auth.uid() = host_id);
+
+DROP POLICY IF EXISTS "Hosts can update/end live stream" ON public.live_streams;
+CREATE POLICY "Hosts can update/end live stream" ON public.live_streams
+  FOR UPDATE TO authenticated USING (auth.uid() = host_id);
+
+DROP POLICY IF EXISTS "Hosts can delete own live stream" ON public.live_streams;
+CREATE POLICY "Hosts can delete own live stream" ON public.live_streams
+  FOR DELETE TO authenticated USING (auth.uid() = host_id);
+
+-- Enable Realtime Broadcasting on the live_streams publication safely
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 
+    FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'live_streams'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE live_streams;
+  END IF;
+END $$;

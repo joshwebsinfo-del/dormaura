@@ -18,6 +18,7 @@ type Participant = {
   stream?: MediaStream;
   isMuted: boolean;
   isVideoOff: boolean;
+  isLocal: boolean;
   peerConnection?: RTCPeerConnection;
 };
 
@@ -40,6 +41,22 @@ export default function LiveCallPage() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [activeCallCount, setActiveCallCount] = useState(0);
   const [callDuration, setCallDuration] = useState(0);
+  const [streamRecord, setStreamRecord] = useState<any>(null);
+
+  // Load active stream on mount or when call status transitions
+  useEffect(() => {
+    const fetchActiveStream = async () => {
+      const { data } = await supabase
+        .from("live_streams")
+        .select("*")
+        .eq("is_active", true)
+        .eq("room_name", CALL_ROOM);
+      if (data && data.length > 0) {
+        setStreamRecord(data[0]);
+      }
+    };
+    fetchActiveStream();
+  }, [inCall, supabase]);
 
   const localStreamRef = useRef<MediaStream | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -138,6 +155,40 @@ export default function LiveCallPage() {
     [user?.id]
   );
 
+  const leaveCall = useCallback(() => {
+    // Announce leaving
+    if (channelRef.current && user) {
+      channelRef.current.send({
+        type: "broadcast",
+        event: "user-left",
+        payload: { userId: user.id, fullName: user.full_name },
+      });
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
+    // Stop all tracks
+    localStreamRef.current?.getTracks().forEach((t) => t.stop());
+    localStreamRef.current = null;
+
+    // Close all peer connections
+    peerConnectionsRef.current.forEach((pc) => pc.close());
+    peerConnectionsRef.current.clear();
+
+    // Check if host is leaving and mark live stream in DB as inactive
+    if (streamRecord && user && streamRecord.host_id === user.id) {
+      supabase
+        .from("live_streams")
+        .update({ is_active: false, ended_at: new Date().toISOString() })
+        .eq("id", streamRecord.id)
+        .then(() => {});
+    }
+
+    setParticipants([]);
+    setInCall(false);
+    toast("You left the House Call", { icon: "📵" });
+  }, [user, supabase, streamRecord]);
+
   const joinCall = async () => {
     if (!user) {
       toast.error("Please sign in to join the live call");
@@ -154,6 +205,34 @@ export default function LiveCallPage() {
       localStreamRef.current = stream;
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
+      }
+
+      // Check live_streams table: if no active room exists, create one as the host!
+      let activeStreamRec = null;
+      const { data: activeStreams } = await supabase
+        .from("live_streams")
+        .select("*")
+        .eq("is_active", true)
+        .eq("room_name", CALL_ROOM);
+
+      if (!activeStreams || activeStreams.length === 0) {
+        const { data: newStream } = await supabase
+          .from("live_streams")
+          .insert({
+            host_id: user.id,
+            room_name: CALL_ROOM,
+            is_active: true
+          })
+          .select()
+          .single();
+        if (newStream) {
+          activeStreamRec = newStream;
+          setStreamRecord(newStream);
+          toast.success("You are the live stream host! 👑");
+        }
+      } else {
+        activeStreamRec = activeStreams[0];
+        setStreamRecord(activeStreams[0]);
       }
 
       // Set up signaling channel
@@ -224,6 +303,27 @@ export default function LiveCallPage() {
         toast(`${payload.fullName} left the call`, { icon: "👋" });
       });
 
+      // Listen for Host Admin Commands (Mute all or End session)
+      channel.on("broadcast", { event: "host-mute-all" }, () => {
+        if (user.id !== activeStreamRec?.host_id) {
+          if (localStreamRef.current) {
+            const audioTrack = localStreamRef.current.getAudioTracks()[0];
+            if (audioTrack && audioTrack.enabled) {
+              audioTrack.enabled = false;
+              setIsMuted(true);
+              toast("The stream host has muted everyone", { icon: "🔇" });
+            }
+          }
+        }
+      });
+
+      channel.on("broadcast", { event: "host-end-session" }, () => {
+        if (user.id !== activeStreamRec?.host_id) {
+          toast("The stream host has ended this live room session", { icon: "📵" });
+          leaveCall();
+        }
+      });
+
       channel.subscribe((status) => {
         if (status === "SUBSCRIBED") {
           // Announce joining
@@ -266,30 +366,35 @@ export default function LiveCallPage() {
     }
   };
 
-  const leaveCall = useCallback(() => {
-    // Announce leaving
-    if (channelRef.current && user) {
+  const hostMuteAll = () => {
+    if (channelRef.current && streamRecord && user?.id === streamRecord.host_id) {
       channelRef.current.send({
         type: "broadcast",
-        event: "user-left",
-        payload: { userId: user.id, fullName: user.full_name },
+        event: "host-mute-all",
+        payload: {}
       });
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
+      toast.success("Muted all roommates in this stream! 🔇");
     }
+  };
 
-    // Stop all tracks
-    localStreamRef.current?.getTracks().forEach((t) => t.stop());
-    localStreamRef.current = null;
-
-    // Close all peer connections
-    peerConnectionsRef.current.forEach((pc) => pc.close());
-    peerConnectionsRef.current.clear();
-
-    setParticipants([]);
-    setInCall(false);
-    toast("You left the House Call", { icon: "📵" });
-  }, [user, supabase]);
+  const hostEndSession = async () => {
+    if (streamRecord && user?.id === streamRecord.host_id) {
+      if (channelRef.current) {
+        await channelRef.current.send({
+          type: "broadcast",
+          event: "host-end-session",
+          payload: {}
+        });
+      }
+      await supabase
+        .from("live_streams")
+        .update({ is_active: false, ended_at: new Date().toISOString() })
+        .eq("id", streamRecord.id);
+      
+      leaveCall();
+      toast.success("Ended active session for all residents! 📵");
+    }
+  };
 
   const toggleMute = () => {
     if (!localStreamRef.current) return;
@@ -309,31 +414,34 @@ export default function LiveCallPage() {
     }
   };
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => { if (inCall) leaveCall(); };
   }, [inCall, leaveCall]);
 
   const allParticipants = inCall && user
     ? [
-        { userId: user.id, fullName: user.full_name, profilePhoto: user.profile_photo, stream: localStreamRef.current || undefined, isMuted, isVideoOff, isLocal: true },
+        {
+          userId: user.id,
+          fullName: user.full_name,
+          profilePhoto: user.profile_photo,
+          stream: localStreamRef.current || undefined,
+          isMuted,
+          isVideoOff,
+          isLocal: true,
+        },
         ...participants.map(p => ({ ...p, isLocal: false })),
       ]
     : [];
 
   return (
-    <div className="space-y-4 pt-2 pb-24">
-      {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, rgba(239,68,68,0.2), rgba(124,58,237,0.2))", border: "1px solid rgba(239,68,68,0.3)" }}>
-              <Radio size={16} className="text-rose-400" />
-            </div>
-            <h1 className="font-display font-bold text-xl text-white">House Live Call</h1>
+    <div className="p-4 md:p-6 max-w-4xl mx-auto">
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center"
+            style={{ background: "linear-gradient(135deg, rgba(239,68,68,0.2), rgba(124,58,237,0.2))", border: "1px solid rgba(239,68,68,0.3)" }}>
+            <Radio size={16} className="text-rose-400" />
           </div>
-          <p className="text-white/40 text-xs mt-1 ml-10">Everyone in the dorm joins one call</p>
+          <h1 className="font-display font-bold text-xl text-white">House Live Call</h1>
         </div>
         {inCall && (
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl"
@@ -412,6 +520,32 @@ export default function LiveCallPage() {
       ) : (
         /* In-call view */
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
+          {/* Host admin control bar overlay if local user is host */}
+          {streamRecord && user && streamRecord.host_id === user.id && (
+            <div className="flex items-center justify-between border border-rose-500/20 bg-rose-500/10 rounded-2xl px-4 py-3 text-xs mb-4">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
+                <span className="text-rose-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                  👑 Stream Host Panel
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={hostMuteAll}
+                  className="bg-black/60 hover:bg-black/80 text-white font-semibold px-3 py-1.5 rounded-xl border border-white/10 active:scale-95 transition-all text-xs"
+                >
+                  Mute All roommates
+                </button>
+                <button
+                  onClick={hostEndSession}
+                  className="bg-rose-600 hover:bg-rose-500 text-white font-semibold px-3 py-1.5 rounded-xl active:scale-95 transition-all text-xs"
+                >
+                  End Session for All
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Video grid */}
           <div className={`grid gap-2 ${allParticipants.length === 1 ? "grid-cols-1" : allParticipants.length <= 4 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3"}`}>
             {allParticipants.map((participant) => (
