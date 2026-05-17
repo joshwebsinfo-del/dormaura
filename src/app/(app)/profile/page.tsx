@@ -230,6 +230,11 @@ export default function ProfilePage() {
         <ChevronRight size={16} className="text-white/20" />
       </motion.div>
 
+      {/* ============================================================
+          PWA INSTALL APP SYSTEM (Reactive Banner & Installer)
+          ============================================================ */}
+      <PWAInstallSection />
+
       {/* Availability */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
         className="glass rounded-2xl p-4">
@@ -289,5 +294,116 @@ export default function ProfilePage() {
         Sign Out
       </motion.button>
     </div>
+  );
+}
+
+function PWAInstallSection() {
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isIOS, setIsIOS] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+
+  useEffect(() => {
+    // Detect standalone mode
+    if (typeof window !== "undefined") {
+      const isStandaloneMode = window.matchMedia("(display-mode: standalone)").matches 
+        || (window.navigator as any).standalone;
+      setIsStandalone(!!isStandaloneMode);
+
+      // Detect iOS platform
+      const userAgent = window.navigator.userAgent.toLowerCase();
+      setIsIOS(/iphone|ipad|ipod/.test(userAgent));
+    }
+
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === "accepted") {
+      setDeferredPrompt(null);
+      toast.success("Welcome to DormAura Native! 📱✨");
+    }
+  };
+
+  if (isStandalone) {
+    return (
+      <div className="glass rounded-2xl p-4 border border-emerald-500/20 bg-emerald-500/05 flex items-center gap-3">
+        <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+          <Zap size={16} />
+        </div>
+        <div>
+          <h4 className="text-white font-bold text-xs">Installed & Running Native</h4>
+          <p className="text-white/40 text-[9px] mt-0.5">You are already using the ultimate, high-speed standalone app.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isIOS) {
+    return (
+      <div className="glass rounded-2xl p-4 border border-violet-500/20 bg-violet-500/05 flex flex-col gap-2">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-violet-500/10 text-violet-400 flex items-center justify-center">
+            <Zap size={16} />
+          </div>
+          <div>
+            <h4 className="text-white font-bold text-xs">Install DormAura on iPhone</h4>
+            <p className="text-white/40 text-[9px] mt-0.5">Follow these 2 simple steps to add it to your Home Screen:</p>
+          </div>
+        </div>
+        <div className="pl-11 text-[10px] text-white/60 space-y-1">
+          <p>1. Tap the Share button <span className="bg-white/10 px-1.5 py-0.5 rounded text-white text-[11px] font-bold">📤</span> at the bottom of your Safari browser.</p>
+          <p>2. Scroll down and tap <span className="text-violet-400 font-bold">Add to Home Screen 📱</span>.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!deferredPrompt) {
+    return (
+      <div className="glass rounded-2xl p-4 border border-white/05 flex items-center gap-3 opacity-60">
+        <div className="w-8 h-8 rounded-xl bg-white/10 text-white/50 flex items-center justify-center">
+          <Zap size={16} />
+        </div>
+        <div>
+          <h4 className="text-white font-bold text-xs">PWA Install Available</h4>
+          <p className="text-white/40 text-[9px] mt-0.5">Use Chrome, Edge, or Samsung Internet to download as a native app.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="glass rounded-2xl p-4 border border-cyan-500/30 bg-gradient-to-r from-cyan-500/05 to-transparent flex items-center justify-between shadow-[0_0_20px_rgba(6,182,212,0.05)]"
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center animate-pulse">
+          <Zap size={18} />
+        </div>
+        <div>
+          <h4 className="text-white font-bold text-xs tracking-tight">Install Standalone App</h4>
+          <p className="text-white/40 text-[9px] mt-0.5">Get high-speed native app experience & notifications</p>
+        </div>
+      </div>
+      <button
+        onClick={handleInstallClick}
+        className="px-4 py-2 bg-cyan-500 text-black rounded-xl text-xs font-bold shadow-[0_0_12px_rgba(6,182,212,0.3)] hover:bg-cyan-400 transition-colors"
+      >
+        Install App
+      </button>
+    </motion.div>
   );
 }
