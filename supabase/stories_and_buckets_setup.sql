@@ -49,14 +49,26 @@ CREATE TABLE IF NOT EXISTS public.stories (
 ALTER TABLE public.stories ENABLE ROW LEVEL SECURITY;
 
 -- Stories RLS Policies
+DROP POLICY IF EXISTS "Stories are viewable by authenticated" ON public.stories;
 CREATE POLICY "Stories are viewable by authenticated" ON public.stories
   FOR SELECT TO authenticated USING (expires_at > NOW());
 
+DROP POLICY IF EXISTS "Users can create stories" ON public.stories;
 CREATE POLICY "Users can create stories" ON public.stories
   FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own stories" ON public.stories;
 CREATE POLICY "Users can delete own stories" ON public.stories
   FOR DELETE TO authenticated USING (auth.uid() = user_id);
 
--- 4. Enable Realtime Broadcasting on the stories publication
-ALTER PUBLICATION supabase_realtime ADD TABLE stories;
+-- 4. Enable Realtime Broadcasting on the stories publication safely
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 
+    FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'stories'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE stories;
+  END IF;
+END $$;

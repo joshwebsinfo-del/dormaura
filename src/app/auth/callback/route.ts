@@ -6,10 +6,12 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/home";
 
-  // Resolve true public origin when behind Render's reverse proxy
+  // Resolve true public origin: prioritize env public URL to prevent localhost:10000 loop on Render
   const forwardedHost = request.headers.get("x-forwarded-host");
   const forwardedProto = request.headers.get("x-forwarded-proto") ?? "https";
-  const publicOrigin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : origin;
+  const publicOrigin = process.env.NEXT_PUBLIC_APP_URL
+    ? process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")
+    : (forwardedHost ? `${forwardedProto}://${forwardedHost}` : origin);
 
   if (code) {
     const supabase = await createClient();
