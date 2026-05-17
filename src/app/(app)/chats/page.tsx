@@ -399,6 +399,7 @@ export default function ChatsPage() {
       </div>
 
       {/* Main chat window container */}
+      <div className="flex-1 flex overflow-hidden">
         {/* If Personal Tab: Left Column selector for users */}
         {activeTab === "personal" && (
           <div className="w-64 border-r border-white/5 bg-black/20 overflow-y-auto hidden md:flex flex-col shrink-0">
