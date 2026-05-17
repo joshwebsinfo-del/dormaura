@@ -28,11 +28,24 @@ CREATE POLICY "Authenticated users can upload to storage objects"
     bucket_id IN ('avatars', 'post-images', 'marketplace', 'lost-found', 'reels')
   );
 
+DROP POLICY IF EXISTS "Authenticated users can update storage objects" ON storage.objects;
+CREATE POLICY "Authenticated users can update storage objects"
+  ON storage.objects FOR UPDATE
+  TO authenticated
+  USING (
+    bucket_id IN ('avatars', 'post-images', 'marketplace', 'lost-found', 'reels')
+  )
+  WITH CHECK (
+    bucket_id IN ('avatars', 'post-images', 'marketplace', 'lost-found', 'reels')
+  );
+
 DROP POLICY IF EXISTS "Owners can delete their own storage objects" ON storage.objects;
 CREATE POLICY "Owners can delete their own storage objects"
   ON storage.objects FOR DELETE
   TO authenticated
-  USING (auth.uid()::text = owner::text);
+  USING (
+    bucket_id IN ('avatars', 'post-images', 'marketplace', 'lost-found', 'reels')
+  );
 
 -- 3. Create Daily Stories Table (self-destructs after 25 hours like Facebook)
 CREATE TABLE IF NOT EXISTS public.stories (

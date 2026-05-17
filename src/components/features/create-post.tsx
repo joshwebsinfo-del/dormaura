@@ -79,7 +79,8 @@ export function CreatePost() {
       queryClient.invalidateQueries({ queryKey: ["feed"] });
       toast.success("Posted! 🚀");
     } catch (err: any) {
-      toast.error(err.message || "Failed to post");
+      console.error("CreatePost submit error:", err);
+      toast.error(err.message || err.error_description || JSON.stringify(err) || "Failed to publish post. Please check storage bucket setup.");
     } finally {
       setLoading(false);
     }

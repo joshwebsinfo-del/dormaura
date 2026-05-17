@@ -290,20 +290,60 @@ export default function ChatsPage() {
 
         {/* Tab 2 Header: DM search / Recipient List */}
         {activeTab === "personal" && (
-          <div className="flex gap-3 items-center mt-2">
-            <input 
-              type="text"
-              placeholder="Search roommate to chat..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 input-glass py-1.5 px-3 text-xs rounded-xl"
-            />
-            {activeRecipient && (
-              <div className="flex items-center gap-1.5 bg-cyan-500/10 border border-cyan-500/20 rounded-xl px-3 py-1 text-cyan-400 text-xs font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                Chatting with {activeRecipient.full_name}
-              </div>
-            )}
+          <div className="space-y-3 mt-2">
+            <div className="flex gap-3 items-center">
+              <input 
+                type="text"
+                placeholder="Search roommate to chat..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1 input-glass py-1.5 px-3 text-xs rounded-xl"
+              />
+              {activeRecipient && (
+                <button 
+                  onClick={() => setActiveRecipient(null)}
+                  className="flex items-center gap-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 rounded-xl px-3 py-1 text-cyan-400 text-xs font-semibold transition-all group"
+                  title="Click to clear recipient and select another"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                  <span>Chatting with {activeRecipient.full_name}</span>
+                  <span className="text-[10px] text-white/40 ml-1 group-hover:text-white transition-colors">✕</span>
+                </button>
+              )}
+            </div>
+
+            {/* Premium Swipable Resident Avatars Carousel */}
+            <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-1.5 px-1">
+              {filteredResidents?.map((r) => {
+                const isSelected = activeRecipient?.id === r.id;
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => setActiveRecipient(r)}
+                    className="flex flex-col items-center gap-1.5 shrink-0 group focus:outline-none"
+                  >
+                    <div className={`w-11 h-11 rounded-full overflow-hidden border-2 transition-all p-0.5 ${
+                      isSelected 
+                        ? "border-cyan-500 shadow-md shadow-cyan-500/20 scale-105" 
+                        : "border-white/10 group-hover:border-white/30"
+                    }`}>
+                      {r.profile_photo ? (
+                        <Image src={r.profile_photo} alt="" width={40} height={40} className="w-full h-full object-cover rounded-full" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center font-bold text-xs bg-white/5 text-white/60 rounded-full">
+                          {r.full_name?.charAt(0)}
+                        </div>
+                      )}
+                    </div>
+                    <span className={`text-[9px] max-w-[50px] truncate font-medium ${
+                      isSelected ? "text-cyan-400 font-semibold" : "text-white/40 group-hover:text-white/60"
+                    }`}>
+                      {r.full_name?.split(" ")[0]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

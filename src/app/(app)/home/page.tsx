@@ -199,7 +199,8 @@ export default function HomePage() {
       queryClient.invalidateQueries({ queryKey: ["feed"] });
       toast.success("Post nested successfully! 🚀");
     } catch (err: any) {
-      toast.error(err.message || "Failed to post");
+      console.error("Post creation error details:", err);
+      toast.error(err.message || err.error_description || JSON.stringify(err) || "Failed to post. Check your storage bucket and network.");
     } finally {
       setPostLoading(false);
     }
@@ -241,7 +242,8 @@ export default function HomePage() {
       refetchStories();
       toast.success("Story posted! Expires in 25 hours. ⏰🔥");
     } catch (err: any) {
-      toast.error(err.message || "Failed to post story");
+      console.error("Story creation error details:", err);
+      toast.error(err.message || err.error_description || JSON.stringify(err) || "Failed to post story. Check your storage bucket and network.");
     } finally {
       setStoryLoading(false);
     }

@@ -313,6 +313,11 @@ function PWAInstallSection() {
       // Detect iOS platform
       const userAgent = window.navigator.userAgent.toLowerCase();
       setIsIOS(/iphone|ipad|ipod/.test(userAgent));
+
+      // Read pre-captured early installation event if already present
+      if ((window as any).deferredInstallPrompt) {
+        setDeferredPrompt((window as any).deferredInstallPrompt);
+      }
     }
 
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -320,9 +325,15 @@ function PWAInstallSection() {
       setDeferredPrompt(e);
     };
 
+    const handleCustomPrompt = (e: any) => {
+      setDeferredPrompt(e.detail);
+    };
+
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("pwa-install-prompt", handleCustomPrompt);
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("pwa-install-prompt", handleCustomPrompt);
     };
   }, []);
 

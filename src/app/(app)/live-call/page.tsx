@@ -224,13 +224,34 @@ export default function LiveCallPage() {
         toast(`${payload.fullName} left the call`, { icon: "👋" });
       });
 
-      await channel.subscribe();
+      channel.subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          // Announce joining
+          channel.send({
+            type: "broadcast",
+            event: "user-joined",
+            payload: { userId: user.id, fullName: user.full_name, profilePhoto: user.profile_photo },
+          });
 
-      // Announce joining
-      channel.send({
-        type: "broadcast",
-        event: "user-joined",
-        payload: { userId: user.id, fullName: user.full_name, profilePhoto: user.profile_photo },
+          // Broadcast global alert to notify everyone in the house
+          const signalChannel = supabase.channel("dorm-house-call-signal");
+          signalChannel.subscribe((sigStatus) => {
+            if (sigStatus === "SUBSCRIBED") {
+              signalChannel.send({
+                type: "broadcast",
+                event: "call-alert",
+                payload: {
+                  hostName: user.full_name,
+                  hostPhoto: user.profile_photo,
+                },
+              });
+              // Remove the signal channel after sending
+              setTimeout(() => {
+                supabase.removeChannel(signalChannel);
+              }, 3000);
+            }
+          });
+        }
       });
 
       setInCall(true);
@@ -461,15 +482,11 @@ function ParticipantTile({
   isLocal: boolean;
   localVideoRef?: React.RefObject<HTMLVideoElement | null>;
 }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const activeRef = isLocal ? localVideoRef : { current: videoRef.current };
-
-  useEffect(() => {
-    const el = isLocal ? localVideoRef?.current : videoRef.current;
+  const setVideoRef = useCallback((el: HTMLVideoElement | null) => {
     if (el && participant.stream) {
       el.srcObject = participant.stream;
     }
-  }, [participant.stream, isLocal, localVideoRef]);
+  }, [participant.stream]);
 
   return (
     <motion.div
@@ -494,7 +511,10 @@ function ParticipantTile({
         </div>
       ) : (
         <video
-          ref={isLocal ? localVideoRef as React.RefObject<HTMLVideoElement> : videoRef}
+          ref={isLocal ? (el) => {
+            if (localVideoRef) (localVideoRef as any).current = el;
+            setVideoRef(el);
+          } : setVideoRef}
           autoPlay
           playsInline
           muted={isLocal}

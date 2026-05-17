@@ -60,12 +60,26 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js').catch(function(err) {
+                var registerSW = function() {
+                  navigator.serviceWorker.register('/sw.js').then(function(reg) {
+                    console.log('SW registered successfully:', reg.scope);
+                  }).catch(function(err) {
                     console.log('SW registration failed:', err);
                   });
-                });
+                };
+                if (document.readyState === 'complete' || document.readyState === 'interactive') {
+                  registerSW();
+                } else {
+                  window.addEventListener('load', registerSW);
+                }
               }
+
+              // Capture early PWA install prompts before bundle hydrations
+              window.addEventListener('beforeinstallprompt', function(e) {
+                e.preventDefault();
+                window.deferredInstallPrompt = e;
+                window.dispatchEvent(new CustomEvent('pwa-install-prompt', { detail: e }));
+              });
             `,
           }}
         />
