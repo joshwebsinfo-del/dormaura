@@ -14,7 +14,7 @@ import Image from "next/image";
 type Participant = {
   userId: string;
   fullName: string;
-  profilePhoto?: string;
+  profilePhoto?: string | null;
   stream?: MediaStream;
   isMuted: boolean;
   isVideoOff: boolean;
@@ -457,7 +457,7 @@ export default function LiveCallPage() {
 function ParticipantTile({
   participant, isLocal, localVideoRef,
 }: {
-  participant: { userId: string; fullName: string; profilePhoto?: string; stream?: MediaStream; isMuted: boolean; isVideoOff: boolean; isLocal: boolean };
+  participant: { userId: string; fullName: string; profilePhoto?: string | null; stream?: MediaStream; isMuted: boolean; isVideoOff: boolean; isLocal: boolean; peerConnection?: RTCPeerConnection };
   isLocal: boolean;
   localVideoRef?: React.RefObject<HTMLVideoElement | null>;
 }) {
