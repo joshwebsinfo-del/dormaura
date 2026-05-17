@@ -17,7 +17,7 @@ ON CONFLICT (id) DO NOTHING;
 DROP POLICY IF EXISTS "Public read access for storage objects" ON storage.objects;
 CREATE POLICY "Public read access for storage objects"
   ON storage.objects FOR SELECT
-  TO authenticated
+  TO public
   USING (true);
 
 DROP POLICY IF EXISTS "Authenticated users can upload to storage objects" ON storage.objects;

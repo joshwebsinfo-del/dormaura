@@ -45,6 +45,7 @@ export default function HomePage() {
   const [postModalOpen, setPostModalOpen] = useState(false);
   const [storyModalOpen, setStoryModalOpen] = useState(false);
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
+  const [isStoryPaused, setIsStoryPaused] = useState(false);
 
   // Post form states
   const [postContent, setPostContent] = useState("");
@@ -110,18 +111,42 @@ export default function HomePage() {
     };
   }, [supabase, queryClient, refetchStories]);
 
-  // Story timer automation (auto-advance)
+  const [storyProgress, setStoryProgress] = useState(0);
+
+  // Reset progress when changing story
   useEffect(() => {
-    if (activeStoryIndex === null || !stories) return;
-    const interval = setTimeout(() => {
-      if (activeStoryIndex < stories.length - 1) {
-        setActiveStoryIndex(activeStoryIndex + 1);
-      } else {
+    setStoryProgress(0);
+  }, [activeStoryIndex]);
+
+  // Story timer automation (lasts 10 seconds, then drops, pause on press)
+  useEffect(() => {
+    if (activeStoryIndex === null || !stories) {
+      setStoryProgress(0);
+      return;
+    }
+    if (isStoryPaused) return;
+
+    const duration = 10000; // 10 seconds per story
+    const startProgress = storyProgress;
+    const startTime = Date.now() - (startProgress / 100) * duration;
+
+    let animId: number;
+    const update = () => {
+      const elapsed = Date.now() - startTime;
+      const pct = Math.min((elapsed / duration) * 100, 100);
+      setStoryProgress(pct);
+
+      if (pct >= 100) {
+        // Automatically drop story when finished
         setActiveStoryIndex(null);
+      } else {
+        animId = requestAnimationFrame(update);
       }
-    }, 4500); // 4.5 seconds per story
-    return () => clearTimeout(interval);
-  }, [activeStoryIndex, stories]);
+    };
+    animId = requestAnimationFrame(update);
+
+    return () => cancelAnimationFrame(animId);
+  }, [activeStoryIndex, stories, isStoryPaused]);
 
   // Post image handler
   const handlePostImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -352,7 +377,7 @@ export default function HomePage() {
           ============================================================ */}
       <AnimatePresence>
         {storyModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl overflow-y-auto">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -466,7 +491,7 @@ export default function HomePage() {
           ============================================================ */}
       <AnimatePresence>
         {postModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl overflow-y-auto">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -554,7 +579,13 @@ export default function HomePage() {
           ============================================================ */}
       <AnimatePresence>
         {activeStoryIndex !== null && stories && (
-          <div className="fixed inset-0 z-50 flex flex-col bg-black justify-between overflow-hidden">
+          <div 
+            onPointerDown={() => setIsStoryPaused(true)}
+            onPointerUp={() => setIsStoryPaused(false)}
+            onTouchStart={() => setIsStoryPaused(true)}
+            onTouchEnd={() => setIsStoryPaused(false)}
+            className="fixed inset-0 z-50 flex flex-col bg-black justify-between overflow-hidden"
+          >
             
             {/* Top Area: Progress lines & Info */}
             <div className="px-4 pt-4 pb-2 z-10 bg-gradient-to-b from-black/80 to-transparent">
@@ -562,13 +593,14 @@ export default function HomePage() {
                 {stories.map((s, idx) => (
                   <div key={s.id} className="h-[3px] flex-1 rounded bg-white/20 overflow-hidden">
                     <div 
-                      className={`h-full bg-cyan-400 transition-all ease-linear ${
-                        idx === activeStoryIndex 
-                          ? "w-full duration-[4500ms]" 
+                      className="h-full bg-cyan-400"
+                      style={{
+                        width: idx === activeStoryIndex 
+                          ? `${storyProgress}%` 
                           : idx < activeStoryIndex 
-                            ? "w-full" 
-                            : "w-0"
-                      }`} 
+                            ? "100%" 
+                            : "0%"
+                      }}
                     />
                   </div>
                 ))}

@@ -301,6 +301,7 @@ function PWAInstallSection() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const [guideModalOpen, setGuideModalOpen] = useState(false);
 
   useEffect(() => {
     // Detect standalone mode
@@ -326,12 +327,16 @@ function PWAInstallSection() {
   }, []);
 
   const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === "accepted") {
-      setDeferredPrompt(null);
-      toast.success("Welcome to DormAura Native! 📱✨");
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === "accepted") {
+        setDeferredPrompt(null);
+        toast.success("Welcome to DormAura Standalone! 📱✨");
+      }
+    } else {
+      // Prompt not active yet or not supported natively - show manual installation guide!
+      setGuideModalOpen(true);
     }
   };
 
@@ -342,68 +347,111 @@ function PWAInstallSection() {
           <Zap size={16} />
         </div>
         <div>
-          <h4 className="text-white font-bold text-xs">Installed & Running Native</h4>
+          <h4 className="text-white font-bold text-xs">Installed & Running Standalone</h4>
           <p className="text-white/40 text-[9px] mt-0.5">You are already using the ultimate, high-speed standalone app.</p>
         </div>
       </div>
     );
   }
 
-  if (isIOS) {
-    return (
-      <div className="glass rounded-2xl p-4 border border-violet-500/20 bg-violet-500/05 flex flex-col gap-2">
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="glass rounded-2xl p-4 border border-cyan-500/30 bg-gradient-to-r from-cyan-500/05 to-transparent flex items-center justify-between shadow-[0_0_20px_rgba(6,182,212,0.05)] cursor-pointer"
+        onClick={handleInstallClick}
+      >
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-violet-500/10 text-violet-400 flex items-center justify-center">
-            <Zap size={16} />
+          <div className="w-9 h-9 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center animate-pulse">
+            <Zap size={18} />
           </div>
           <div>
-            <h4 className="text-white font-bold text-xs">Install DormAura on iPhone</h4>
-            <p className="text-white/40 text-[9px] mt-0.5">Follow these 2 simple steps to add it to your Home Screen:</p>
+            <h4 className="text-white font-bold text-xs tracking-tight">Install Standalone App</h4>
+            <p className="text-white/40 text-[9px] mt-0.5">Get high-speed native app experience & notifications</p>
           </div>
         </div>
-        <div className="pl-11 text-[10px] text-white/60 space-y-1">
-          <p>1. Tap the Share button <span className="bg-white/10 px-1.5 py-0.5 rounded text-white text-[11px] font-bold">📤</span> at the bottom of your Safari browser.</p>
-          <p>2. Scroll down and tap <span className="text-violet-400 font-bold">Add to Home Screen 📱</span>.</p>
-        </div>
-      </div>
-    );
-  }
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleInstallClick();
+          }}
+          className="px-4 py-2 bg-cyan-500 text-black rounded-xl text-xs font-bold shadow-[0_0_12px_rgba(6,182,212,0.3)] hover:bg-cyan-400 transition-all active:scale-95 shrink-0 animate-pulse"
+        >
+          Install App
+        </button>
+      </motion.div>
 
-  if (!deferredPrompt) {
-    return (
-      <div className="glass rounded-2xl p-4 border border-white/05 flex items-center gap-3 opacity-60">
-        <div className="w-8 h-8 rounded-xl bg-white/10 text-white/50 flex items-center justify-center">
-          <Zap size={16} />
-        </div>
-        <div>
-          <h4 className="text-white font-bold text-xs">PWA Install Available</h4>
-          <p className="text-white/40 text-[9px] mt-0.5">Use Chrome, Edge, or Samsung Internet to download as a native app.</p>
-        </div>
-      </div>
-    );
-  }
+      {/* Manual PWA Installation Guide Modal */}
+      <AnimatePresence>
+        {guideModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="glass border border-white/[0.08] w-full max-w-sm rounded-3xl overflow-hidden p-5 flex flex-col gap-4 shadow-2xl relative bg-black/95 backdrop-blur-xl"
+            >
+              <button 
+                onClick={() => setGuideModalOpen(false)}
+                className="absolute top-4 right-4 text-white/50 hover:text-white"
+              >
+                <X size={18} />
+              </button>
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.98 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="glass rounded-2xl p-4 border border-cyan-500/30 bg-gradient-to-r from-cyan-500/05 to-transparent flex items-center justify-between shadow-[0_0_20px_rgba(6,182,212,0.05)]"
-    >
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center animate-pulse">
-          <Zap size={18} />
-        </div>
-        <div>
-          <h4 className="text-white font-bold text-xs tracking-tight">Install Standalone App</h4>
-          <p className="text-white/40 text-[9px] mt-0.5">Get high-speed native app experience & notifications</p>
-        </div>
-      </div>
-      <button
-        onClick={handleInstallClick}
-        className="px-4 py-2 bg-cyan-500 text-black rounded-xl text-xs font-bold shadow-[0_0_12px_rgba(6,182,212,0.3)] hover:bg-cyan-400 transition-colors"
-      >
-        Install App
-      </button>
-    </motion.div>
+              <div className="flex items-center gap-2 border-b border-white/5 pb-2.5">
+                <Zap size={16} className="text-cyan-400 animate-bounce" />
+                <h3 className="text-white font-bold text-sm">How to Install DormAura</h3>
+              </div>
+
+              <div className="space-y-4 my-2">
+                {isIOS ? (
+                  /* iOS instructions */
+                  <div className="space-y-3">
+                    <p className="text-white/70 text-xs leading-relaxed">
+                      On iPhones, Apple does not allow one-tap installs. You can easily add it to your screen manually:
+                    </p>
+                    <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3 text-[11px] text-white/60 space-y-2">
+                      <p className="flex gap-2 items-start">
+                        <span className="bg-white/10 px-1.5 py-0.5 rounded text-white text-[10px] shrink-0 font-bold">1</span>
+                        <span>Tap the <strong>Share</strong> button <span className="text-white">📤</span> in your Safari bottom browser toolbar.</span>
+                      </p>
+                      <p className="flex gap-2 items-start">
+                        <span className="bg-white/10 px-1.5 py-0.5 rounded text-white text-[10px] shrink-0 font-bold">2</span>
+                        <span>Scroll down the sharing menu and tap <span className="text-cyan-400 font-bold">Add to Home Screen 📱</span>.</span>
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  /* Android / Chrome / General instructions */
+                  <div className="space-y-3">
+                    <p className="text-white/70 text-xs leading-relaxed">
+                      Since native installation is not triggered yet, you can quickly install it from your browser menu:
+                    </p>
+                    <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3 text-[11px] text-white/60 space-y-2">
+                      <p className="flex gap-2 items-start">
+                        <span className="bg-white/10 px-1.5 py-0.5 rounded text-white text-[10px] shrink-0 font-bold">1</span>
+                        <span>Tap the <strong>three dots</strong> menu icon <strong className="text-white">⋮</strong> in your browser's top-right corner.</span>
+                      </p>
+                      <p className="flex gap-2 items-start">
+                        <span className="bg-white/10 px-1.5 py-0.5 rounded text-white text-[10px] shrink-0 font-bold">2</span>
+                        <span>Select <span className="text-cyan-400 font-bold">Install app</span> or <span className="text-cyan-400 font-bold">Add to Home screen</span>.</span>
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={() => setGuideModalOpen(false)}
+                className="w-full bg-cyan-500 hover:bg-cyan-400 text-black py-2.5 rounded-xl text-xs font-bold shadow-[0_0_12px_rgba(6,182,212,0.3)] transition-colors"
+              >
+                Got It, Thanks!
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
