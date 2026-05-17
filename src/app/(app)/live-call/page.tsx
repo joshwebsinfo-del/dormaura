@@ -243,6 +243,12 @@ export default function LiveCallPage() {
       channel.on("broadcast", { event: "offer" }, async ({ payload }) => {
         if (payload.to !== user.id) return;
 
+        // Ensure offering participant is registered in our local participant list
+        setParticipants((prev) => {
+          if (prev.find((p) => p.userId === payload.from)) return prev;
+          return [...prev, { userId: payload.from, fullName: payload.fullName || "Roommate", profilePhoto: payload.profilePhoto || null, isMuted: false, isVideoOff: false, isLocal: false }];
+        });
+
         const pc = createPeerConnection(payload.from);
         await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
         const answer = await pc.createAnswer();
@@ -251,13 +257,26 @@ export default function LiveCallPage() {
         channel.send({
           type: "broadcast",
           event: "answer",
-          payload: { from: user.id, to: payload.from, answer },
+          payload: { 
+            from: user.id, 
+            to: payload.from, 
+            answer,
+            fullName: user.full_name,
+            profilePhoto: user.profile_photo
+          },
         });
       });
 
       // Handle answers
       channel.on("broadcast", { event: "answer" }, async ({ payload }) => {
         if (payload.to !== user.id) return;
+
+        // Ensure answering participant is registered in our local participant list
+        setParticipants((prev) => {
+          if (prev.find((p) => p.userId === payload.from)) return prev;
+          return [...prev, { userId: payload.from, fullName: payload.fullName || "Roommate", profilePhoto: payload.profilePhoto || null, isMuted: false, isVideoOff: false, isLocal: false }];
+        });
+
         const pc = peerConnectionsRef.current.get(payload.from);
         if (pc) {
           await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
@@ -291,7 +310,13 @@ export default function LiveCallPage() {
         channel.send({
           type: "broadcast",
           event: "offer",
-          payload: { from: user.id, to: payload.userId, offer },
+          payload: { 
+            from: user.id, 
+            to: payload.userId, 
+            offer,
+            fullName: user.full_name,
+            profilePhoto: user.profile_photo
+          },
         });
       });
 
