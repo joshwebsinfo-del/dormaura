@@ -60,33 +60,53 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               if ('serviceWorker' in navigator) {
-                var registerSW = function() {
-                  navigator.serviceWorker.register('/sw.js').then(function(reg) {
-                    console.log('SW registered successfully:', reg.scope);
-                    
-                    // Periodically poll the server for service worker updates every 15 seconds
-                    setInterval(function() {
-                      reg.update().catch(function() {});
-                    }, 15000);
-                  }).catch(function(err) {
-                    console.log('SW registration failed:', err);
+                // One-time deep forced PWA cache-buster and registration reset sequence
+                if (!localStorage.getItem('pwa_force_cleanup_v2')) {
+                  navigator.serviceWorker.getRegistrations().then(function(regs) {
+                    for (var i = 0; i < regs.length; i++) {
+                      regs[i].unregister();
+                    }
                   });
-                };
-
-                // Trigger automatic real-time update when service worker activates
-                var refreshing = false;
-                navigator.serviceWorker.addEventListener('controllerchange', function() {
-                  if (!refreshing) {
-                    refreshing = true;
-                    console.log('New deployment detected! Reloading DormAura in real-time...');
-                    window.location.reload();
+                  if (typeof caches !== 'undefined') {
+                    caches.keys().then(function(keys) {
+                      keys.forEach(function(key) {
+                        caches.delete(key);
+                      });
+                    });
                   }
-                });
-
-                if (document.readyState === 'complete' || document.readyState === 'interactive') {
-                  registerSW();
+                  localStorage.setItem('pwa_force_cleanup_v2', 'true');
+                  setTimeout(function() {
+                    window.location.reload();
+                  }, 600);
                 } else {
-                  window.addEventListener('load', registerSW);
+                  var registerSW = function() {
+                    navigator.serviceWorker.register('/sw.js').then(function(reg) {
+                      console.log('SW registered successfully:', reg.scope);
+                      
+                      // Periodically poll the server for service worker updates every 15 seconds
+                      setInterval(function() {
+                        reg.update().catch(function() {});
+                      }, 15000);
+                    }).catch(function(err) {
+                      console.log('SW registration failed:', err);
+                    });
+                  };
+
+                  // Trigger automatic real-time update when service worker activates
+                  var refreshing = false;
+                  navigator.serviceWorker.addEventListener('controllerchange', function() {
+                    if (!refreshing) {
+                      refreshing = true;
+                      console.log('New deployment detected! Reloading DormAura in real-time...');
+                      window.location.reload();
+                    }
+                  });
+
+                  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+                    registerSW();
+                  } else {
+                    window.addEventListener('load', registerSW);
+                  }
                 }
               }
 
