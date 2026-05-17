@@ -12,7 +12,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useRef } from "react";
 import { 
   Sparkles, Plus, Image as ImageIcon, Video, ShoppingBag, 
-  X, Send, ArrowLeft, ArrowRight, Heart, MessageCircle, Clock, Music
+  X, Send, ArrowLeft, ArrowRight, Heart, MessageCircle, Clock, Music, Download
 } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
@@ -28,6 +28,11 @@ interface Story {
   user: UserType;
 }
 
+interface GroupedStory {
+  user: UserType;
+  stories: Story[];
+}
+
 const STORY_GRADIENTS = [
   "linear-gradient(135deg, #facc15 0%, #eab308 100%)", // Cyber Gold
   "linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)", // Glacial Neon
@@ -41,13 +46,20 @@ export default function HomePage() {
   const supabase = createClient();
   const queryClient = useQueryClient();
 
+  // PWA Install prompt state
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isPWAInstalled, setIsPWAInstalled] = useState(false);
+
   // Dialog & Creator states
   const [postModalOpen, setPostModalOpen] = useState(false);
   const [storyModalOpen, setStoryModalOpen] = useState(false);
-  const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
+  
+  // Facebook style story states: group list & substory index
+  const [activeGroupIndex, setActiveGroupIndex] = useState<number | null>(null);
+  const [activeSubStoryIndex, setActiveSubStoryIndex] = useState<number>(0);
   const [isStoryPaused, setIsStoryPaused] = useState(false);
 
-  // Post form states
+  // Post form states (allows images OR videos)
   const [postContent, setPostContent] = useState("");
   const [postImage, setPostImage] = useState<File | null>(null);
   const [postImagePreview, setPostImagePreview] = useState<string | null>(null);
@@ -60,6 +72,36 @@ export default function HomePage() {
   const [storyImage, setStoryImage] = useState<File | null>(null);
   const [storyImagePreview, setStoryImagePreview] = useState<string | null>(null);
   const [storyLoading, setStoryLoading] = useState(false);
+
+  // Detect PWA Installation and trigger support
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const standalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone;
+      setIsPWAInstalled(!!standalone);
+
+      const capturePrompt = (e: Event) => {
+        e.preventDefault();
+        setDeferredPrompt(e);
+      };
+
+      window.addEventListener("beforeinstallprompt", capturePrompt);
+      return () => window.removeEventListener("beforeinstallprompt", capturePrompt);
+    }
+  }, []);
+
+  const triggerPWAInstall = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === "accepted") {
+        setIsPWAInstalled(true);
+        setDeferredPrompt(null);
+        toast.success("DormAura installed successfully! 🎉");
+      }
+    } else {
+      toast.success("To install: Tap your browser share/menu button and select 'Add to Home Screen'! 📱✨", { duration: 6000 });
+    }
+  };
 
   // Query Feed
   const { data: posts, isLoading } = useQuery({
@@ -113,18 +155,47 @@ export default function HomePage() {
 
   const [storyProgress, setStoryProgress] = useState(0);
 
-  // Reset progress when changing story
+  // Group stories by user_id for Facebook style groupings
+  const groupedStories: GroupedStory[] = [];
+  if (stories && stories.length > 0) {
+    const userMap = new Map<string, Story[]>();
+    stories.forEach((story) => {
+      if (!userMap.has(story.user_id)) {
+        userMap.set(story.user_id, []);
+      }
+      userMap.get(story.user_id)!.push(story);
+    });
+
+    userMap.forEach((userStories) => {
+      // Sort stories within the group oldest to newest (chronological play)
+      const sorted = [...userStories].sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+      groupedStories.push({
+        user: sorted[0].user,
+        stories: sorted,
+      });
+    });
+  }
+
+  // Reset progress when moving between sub-stories or groups
   useEffect(() => {
     setStoryProgress(0);
-  }, [activeStoryIndex]);
+  }, [activeGroupIndex, activeSubStoryIndex]);
 
-  // Story timer automation (lasts 10 seconds, then drops, pause on press)
+  // Story progression loop (10s duration)
   useEffect(() => {
-    if (activeStoryIndex === null || !stories) {
+    if (activeGroupIndex === null || groupedStories.length === 0) {
       setStoryProgress(0);
       return;
     }
     if (isStoryPaused) return;
+
+    const currentGroup = groupedStories[activeGroupIndex];
+    if (!currentGroup || !currentGroup.stories[activeSubStoryIndex]) {
+      setStoryProgress(0);
+      return;
+    }
 
     const duration = 10000; // 10 seconds per story
     const startProgress = storyProgress;
@@ -137,8 +208,14 @@ export default function HomePage() {
       setStoryProgress(pct);
 
       if (pct >= 100) {
-        // Automatically drop story when finished
-        setActiveStoryIndex(null);
+        if (activeSubStoryIndex < currentGroup.stories.length - 1) {
+          setActiveSubStoryIndex(activeSubStoryIndex + 1);
+        } else if (activeGroupIndex < groupedStories.length - 1) {
+          setActiveGroupIndex(activeGroupIndex + 1);
+          setActiveSubStoryIndex(0);
+        } else {
+          setActiveGroupIndex(null);
+        }
       } else {
         animId = requestAnimationFrame(update);
       }
@@ -146,9 +223,9 @@ export default function HomePage() {
     animId = requestAnimationFrame(update);
 
     return () => cancelAnimationFrame(animId);
-  }, [activeStoryIndex, stories, isStoryPaused]);
+  }, [activeGroupIndex, activeSubStoryIndex, groupedStories, isStoryPaused]);
 
-  // Post image handler
+  // Handle Post file selection (image OR video)
   const handlePostImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -157,7 +234,7 @@ export default function HomePage() {
     }
   };
 
-  // Story image handler
+  // Story image selection
   const handleStoryImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -166,14 +243,14 @@ export default function HomePage() {
     }
   };
 
-  // Handle Post submission
+  // Handle new post creation (relaxed validation to allow empty content if media exists)
   const handlePostSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!postContent.trim() || !user) return;
+    if ((!postContent.trim() && !postImage) || !user) return;
     setPostLoading(true);
 
     try {
-      let image_url: string | null = null;
+      let media_url: string | null = null;
       if (postImage) {
         const ext = postImage.name.split(".").pop();
         const filename = `${user.id}/${Date.now()}.${ext}`;
@@ -182,13 +259,13 @@ export default function HomePage() {
           .upload(filename, postImage, { cacheControl: "3600" });
         if (uploadError) throw uploadError;
         const { data: { publicUrl } } = supabase.storage.from("post-images").getPublicUrl(filename);
-        image_url = publicUrl;
+        media_url = publicUrl;
       }
 
       const { error } = await supabase.from("posts").insert({
         user_id: user.id,
-        content: postContent.trim(),
-        image_url
+        content: postContent.trim() || "",
+        image_url: media_url // Store video OR image public URL inside image_url column
       });
       if (error) throw error;
 
@@ -200,13 +277,13 @@ export default function HomePage() {
       toast.success("Post nested successfully! 🚀");
     } catch (err: any) {
       console.error("Post creation error details:", err);
-      toast.error(err.message || err.error_description || JSON.stringify(err) || "Failed to post. Check your storage bucket and network.");
+      toast.error(err.message || "Failed to publish post.");
     } finally {
       setPostLoading(false);
     }
   };
 
-  // Handle Story submission
+  // Story creation logic
   const handleStorySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -243,7 +320,7 @@ export default function HomePage() {
       toast.success("Story posted! Expires in 25 hours. ⏰🔥");
     } catch (err: any) {
       console.error("Story creation error details:", err);
-      toast.error(err.message || err.error_description || JSON.stringify(err) || "Failed to post story. Check your storage bucket and network.");
+      toast.error(err.message || "Failed to publish story.");
     } finally {
       setStoryLoading(false);
     }
@@ -266,7 +343,33 @@ export default function HomePage() {
         </motion.div>
       )}
 
-      {/* Stories Tray */}
+      {/* Premium PWA Installation Banner */}
+      {!isPWAInstalled && (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass border border-cyan-500/20 p-3.5 rounded-2xl flex items-center justify-between gap-3 shadow-lg"
+          style={{ background: "linear-gradient(135deg, rgba(6,182,212,0.1), rgba(124,58,237,0.05))" }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center shrink-0">
+              <Download size={18} className="text-cyan-400" />
+            </div>
+            <div>
+              <h4 className="text-white font-bold text-xs">Install DormAura App</h4>
+              <p className="text-white/50 text-[10px] mt-0.5 leading-snug">Enjoy instant fast launching and full native experiences!</p>
+            </div>
+          </div>
+          <button 
+            onClick={triggerPWAInstall}
+            className="bg-cyan-500 text-black font-bold text-[10px] px-3 py-2 rounded-xl hover:bg-cyan-400 transition-colors active:scale-95 shrink-0 shadow-md"
+          >
+            Install
+          </button>
+        </motion.div>
+      )}
+
+      {/* Facebook Grouped Stories Tray */}
       <div className="relative">
         <div className="flex items-center gap-3 overflow-x-auto py-2.5 hide-scrollbar px-1 select-none">
           {/* Add story card */}
@@ -288,32 +391,38 @@ export default function HomePage() {
             <span className="text-[10px] font-semibold text-white/50 group-hover:text-white transition-colors">Add Story</span>
           </div>
 
-          {/* Render loaded Active Stories */}
-          {stories && stories.map((story, idx) => (
-            <div
-              key={story.id}
-              onClick={() => setActiveStoryIndex(idx)}
-              className="flex flex-col items-center gap-1.5 cursor-pointer flex-shrink-0"
-            >
-              <div className="relative p-[2.5px] rounded-2xl bg-gradient-to-tr from-cyan-400 via-violet-500 to-amber-400 shadow-[0_0_12px_rgba(0,245,255,0.15)] hover:scale-105 transition-all">
-                <div className="w-[59px] h-[59px] rounded-[13px] overflow-hidden bg-[#050508]">
-                  {story.image_url ? (
-                    <Image src={story.image_url} alt={story.user.full_name} width={59} height={59} className="object-cover w-full h-full" />
-                  ) : (
-                    <div 
-                      className="w-full h-full flex items-center justify-center p-1"
-                      style={{ background: story.bg_gradient || STORY_GRADIENTS[0] }}
-                    >
-                      <span className="text-white text-[8px] font-bold tracking-tight text-center line-clamp-3 leading-snug font-sans">
-                        {story.content}
-                      </span>
-                    </div>
-                  )}
+          {/* Grouped story tray items */}
+          {groupedStories.map((group, groupIdx) => {
+            const firstStory = group.stories[0];
+            return (
+              <div
+                key={group.user.id}
+                onClick={() => {
+                  setActiveGroupIndex(groupIdx);
+                  setActiveSubStoryIndex(0);
+                }}
+                className="flex flex-col items-center gap-1.5 cursor-pointer flex-shrink-0"
+              >
+                <div className="relative p-[2.5px] rounded-2xl bg-gradient-to-tr from-cyan-400 via-violet-500 to-amber-400 shadow-[0_0_12px_rgba(0,245,255,0.15)] hover:scale-105 transition-all">
+                  <div className="w-[59px] h-[59px] rounded-[13px] overflow-hidden bg-[#050508]">
+                    {firstStory.image_url ? (
+                      <Image src={firstStory.image_url} alt={group.user.full_name} width={59} height={59} className="object-cover w-full h-full" />
+                    ) : (
+                      <div 
+                        className="w-full h-full flex items-center justify-center p-1"
+                        style={{ background: firstStory.bg_gradient || STORY_GRADIENTS[0] }}
+                      >
+                        <span className="text-white text-[8px] font-bold tracking-tight text-center line-clamp-3 leading-snug font-sans">
+                          {firstStory.content}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
+                <span className="text-[10px] font-semibold text-white/60 truncate max-w-[66px]">{group.user.full_name.split(" ")[0]}</span>
               </div>
-              <span className="text-[10px] font-semibold text-white/60 truncate max-w-[66px]">{story.user.full_name.split(" ")[0]}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -362,9 +471,7 @@ export default function HomePage() {
         </motion.div>
       )}
 
-      {/* ============================================================
-          FLOATING POST BUTTON
-          ============================================================ */}
+      {/* FLOATING POST BUTTON */}
       <motion.button
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.95 }}
@@ -374,9 +481,7 @@ export default function HomePage() {
         <Plus size={28} className="stroke-[2.5]" />
       </motion.button>
 
-      {/* ============================================================
-          STORY CREATOR MODAL
-          ============================================================ */}
+      {/* STORY CREATOR MODAL */}
       <AnimatePresence>
         {storyModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl overflow-y-auto">
@@ -416,7 +521,6 @@ export default function HomePage() {
                 </button>
               </div>
 
-              {/* Text Story Form */}
               {storyType === "text" ? (
                 <div className="space-y-4">
                   <div 
@@ -433,7 +537,6 @@ export default function HomePage() {
                     />
                   </div>
 
-                  {/* Gradient picker */}
                   <div className="flex gap-2.5 justify-center">
                     {STORY_GRADIENTS.map((grad) => (
                       <button
@@ -446,17 +549,16 @@ export default function HomePage() {
                   </div>
                 </div>
               ) : (
-                /* Image Story Form */
                 <div className="space-y-4">
                   {storyImagePreview ? (
-                    <div className="relative rounded-2xl overflow-hidden border border-white/10 h-44">
-                      <Image src={storyImagePreview} alt="Story preview" width={400} height={200} className="w-full h-full object-cover" />
+                    <div className="relative h-44 rounded-2xl overflow-hidden border border-white/10">
+                      <Image src={storyImagePreview} alt="Story Preview" fill className="object-cover" />
                       <button 
-                        type="button" 
-                        onClick={() => { setStoryImage(null); setStoryImagePreview(null); }} 
-                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white"
+                        type="button"
+                        onClick={() => { setStoryImage(null); setStoryImagePreview(null); }}
+                        className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center text-white hover:bg-black/80"
                       >
-                        <X size={14} />
+                        <X size={15} />
                       </button>
                     </div>
                   ) : (
@@ -469,7 +571,6 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* Submit */}
               <button
                 onClick={handleStorySubmit}
                 disabled={storyLoading}
@@ -488,9 +589,7 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* ============================================================
-          FLOATING POST CREATION MODAL
-          ============================================================ */}
+      {/* FLOATING POST CREATION MODAL */}
       <AnimatePresence>
         {postModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl overflow-y-auto">
@@ -512,7 +611,6 @@ export default function HomePage() {
                 <h3 className="text-white font-bold text-base">Write new Post</h3>
               </div>
 
-              {/* Form body */}
               <form onSubmit={handlePostSubmit} className="space-y-4">
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-white/10">
@@ -534,10 +632,14 @@ export default function HomePage() {
                   />
                 </div>
 
-                {/* Post image preview */}
+                {/* Post image/video preview */}
                 {postImagePreview && (
-                  <div className="relative rounded-2xl overflow-hidden border border-white/10 max-h-48">
-                    <Image src={postImagePreview} alt="Preview" width={500} height={250} className="w-full h-full object-cover" />
+                  <div className="relative rounded-2xl overflow-hidden border border-white/10 max-h-48 bg-black/40">
+                    {postImage?.type.startsWith("video/") ? (
+                      <video src={postImagePreview} controls className="w-full h-full max-h-44 object-cover" />
+                    ) : (
+                      <Image src={postImagePreview} alt="Preview" width={500} height={250} className="w-full h-full object-cover max-h-44" />
+                    )}
                     <button 
                       type="button" 
                       onClick={() => { setPostImage(null); setPostImagePreview(null); }} 
@@ -548,18 +650,17 @@ export default function HomePage() {
                   </div>
                 )}
 
-                {/* Toolbar */}
                 <div className="border-t border-white/[0.05] pt-3.5 flex items-center justify-between">
                   <label className="cursor-pointer flex items-center gap-2 text-white/50 hover:text-cyan-400 transition-colors text-sm font-semibold">
                     <ImageIcon size={18} />
-                    <span>Upload Image</span>
-                    <input type="file" accept="image/*" className="hidden" onChange={handlePostImageChange} />
+                    <span>Upload Image / Video</span>
+                    <input type="file" accept="image/*,video/*" className="hidden" onChange={handlePostImageChange} />
                   </label>
 
                   <button 
                     type="submit" 
-                    disabled={!postContent.trim() || postLoading} 
-                    className="btn-primary py-2.5 px-6 flex items-center gap-2 text-sm font-bold text-black"
+                    disabled={(!postContent.trim() && !postImage) || postLoading} 
+                    className="btn-primary py-2.5 px-6 flex items-center gap-2 text-sm font-bold text-black disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {postLoading ? (
                       <span className="w-5 h-5 rounded-full border-2 border-black border-t-transparent animate-spin" />
@@ -576,140 +677,164 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* ============================================================
-          IMMERSIVE STORIES VIEWER (FACEBOOK/INSTAGRAM STYLE)
-          ============================================================ */}
+      {/* FACEBOOK STYLE GROUPED STORIES VIEWER OVERLAY */}
       <AnimatePresence>
-        {activeStoryIndex !== null && stories && (
-          <div 
-            onPointerDown={() => setIsStoryPaused(true)}
-            onPointerUp={() => setIsStoryPaused(false)}
-            onTouchStart={() => setIsStoryPaused(true)}
-            onTouchEnd={() => setIsStoryPaused(false)}
-            className="fixed inset-0 z-50 flex flex-col bg-black justify-between overflow-hidden"
-          >
-            
-            {/* Top Area: Progress lines & Info */}
-            <div className="px-4 pt-4 pb-2 z-10 bg-gradient-to-b from-black/80 to-transparent">
-              <div className="flex gap-1.5 mb-3.5">
-                {stories.map((s, idx) => (
-                  <div key={s.id} className="h-[3px] flex-1 rounded bg-white/20 overflow-hidden">
-                    <div 
-                      className="h-full bg-cyan-400"
-                      style={{
-                        width: idx === activeStoryIndex 
-                          ? `${storyProgress}%` 
-                          : idx < activeStoryIndex 
-                            ? "100%" 
-                            : "0%"
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
+        {activeGroupIndex !== null && groupedStories.length > 0 && groupedStories[activeGroupIndex] && (
+          (() => {
+            const currentGroup = groupedStories[activeGroupIndex];
+            const currentStory = currentGroup.stories[activeSubStoryIndex];
+            if (!currentStory) return null;
 
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl overflow-hidden border border-white/10 shrink-0">
-                    {stories[activeStoryIndex].user.profile_photo ? (
-                      <Image src={stories[activeStoryIndex].user.profile_photo} alt={stories[activeStoryIndex].user.full_name} width={36} height={36} className="object-cover w-full h-full" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-white font-bold bg-cyan-500/20">
-                        {stories[activeStoryIndex].user.full_name.charAt(0)}
+            return (
+              <div 
+                onPointerDown={() => setIsStoryPaused(true)}
+                onPointerUp={() => setIsStoryPaused(false)}
+                onTouchStart={() => setIsStoryPaused(true)}
+                onTouchEnd={() => setIsStoryPaused(false)}
+                className="fixed inset-0 z-50 flex flex-col bg-black justify-between overflow-hidden"
+              >
+                {/* Top progress lines & group information */}
+                <div className="px-4 pt-4 pb-2 z-10 bg-gradient-to-b from-black/90 to-transparent">
+                  <div className="flex gap-1.5 mb-3.5">
+                    {currentGroup.stories.map((s, idx) => (
+                      <div key={s.id} className="h-[3px] flex-1 rounded bg-white/20 overflow-hidden">
+                        <div 
+                          className="h-full bg-cyan-400 transition-all duration-100 ease-linear"
+                          style={{
+                            width: idx === activeSubStoryIndex 
+                              ? `${storyProgress}%` 
+                              : idx < activeSubStoryIndex 
+                                ? "100%" 
+                                : "0%"
+                          }}
+                        />
                       </div>
-                    )}
+                    ))}
                   </div>
-                  <div>
-                    <h4 className="text-white font-bold text-sm tracking-tight">{stories[activeStoryIndex].user.full_name}</h4>
-                    <p className="text-white/40 text-[10px] mt-0.5">Daily Story</p>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl overflow-hidden border border-white/10 shrink-0">
+                        {currentGroup.user.profile_photo ? (
+                          <Image src={currentGroup.user.profile_photo} alt={currentGroup.user.full_name} width={36} height={36} className="object-cover w-full h-full" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-white font-bold bg-cyan-500/20">
+                            {currentGroup.user.full_name.charAt(0)}
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <h4 className="text-white font-bold text-sm tracking-tight">{currentGroup.user.full_name}</h4>
+                        <p className="text-white/40 text-[10px] mt-0.5">Story {activeSubStoryIndex + 1} of {currentGroup.stories.length}</p>
+                      </div>
+                    </div>
+
+                    <button 
+                      onClick={() => setActiveGroupIndex(null)}
+                      className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80"
+                    >
+                      <X size={16} />
+                    </button>
                   </div>
                 </div>
 
-                <button 
-                  onClick={() => setActiveStoryIndex(null)}
-                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            </div>
-
-            {/* Middle Area: Story Content */}
-            <div className="flex-1 flex items-center justify-center p-4 relative">
-              {/* Previous Tap Zone */}
-              <div 
-                onClick={() => {
-                  if (activeStoryIndex > 0) {
-                    setActiveStoryIndex(activeStoryIndex - 1);
-                  }
-                }}
-                className="absolute left-0 top-0 bottom-0 w-1/4 z-20 cursor-pointer"
-              />
-
-              {/* Next Tap Zone */}
-              <div 
-                onClick={() => {
-                  if (activeStoryIndex < stories.length - 1) {
-                    setActiveStoryIndex(activeStoryIndex + 1);
-                  } else {
-                    setActiveStoryIndex(null);
-                  }
-                }}
-                className="absolute right-0 top-0 bottom-0 w-1/4 z-20 cursor-pointer"
-              />
-
-              {/* Render Story details */}
-              {stories[activeStoryIndex].image_url ? (
-                <div className="relative w-full max-w-md h-full max-h-[70vh] rounded-3xl overflow-hidden border border-white/5">
-                  <Image 
-                    src={stories[activeStoryIndex].image_url!} 
-                    alt="Story image" 
-                    fill 
-                    className="object-cover" 
+                {/* Middle Content View */}
+                <div className="flex-1 flex items-center justify-center p-4 relative">
+                  {/* Tap left to go back */}
+                  <div 
+                    onClick={() => {
+                      if (activeSubStoryIndex > 0) {
+                        setActiveSubStoryIndex(activeSubStoryIndex - 1);
+                      } else if (activeGroupIndex > 0) {
+                        setActiveGroupIndex(activeGroupIndex - 1);
+                        setActiveSubStoryIndex(groupedStories[activeGroupIndex - 1].stories.length - 1);
+                      }
+                    }}
+                    className="absolute left-0 top-0 bottom-0 w-1/3 z-20 cursor-pointer"
                   />
-                  {stories[activeStoryIndex].content && (
-                    <div className="absolute bottom-6 inset-x-4 bg-black/60 backdrop-blur-md p-3.5 border border-white/5 rounded-2xl text-center">
-                      <p className="text-white text-sm font-semibold tracking-tight leading-relaxed">
-                        {stories[activeStoryIndex].content}
+
+                  {/* Tap right to advance */}
+                  <div 
+                    onClick={() => {
+                      if (activeSubStoryIndex < currentGroup.stories.length - 1) {
+                        setActiveSubStoryIndex(activeSubStoryIndex + 1);
+                      } else if (activeGroupIndex < groupedStories.length - 1) {
+                        setActiveGroupIndex(activeGroupIndex + 1);
+                        setActiveSubStoryIndex(0);
+                      } else {
+                        setActiveGroupIndex(null);
+                      }
+                    }}
+                    className="absolute right-0 top-0 bottom-0 w-1/3 z-20 cursor-pointer"
+                  />
+
+                  {currentStory.image_url ? (
+                    <div className="relative w-full max-w-md h-full max-h-[70vh] rounded-3xl overflow-hidden border border-white/5">
+                      <Image 
+                        src={currentStory.image_url!} 
+                        alt="Story image" 
+                        fill 
+                        className="object-cover" 
+                      />
+                      {currentStory.content && (
+                        <div className="absolute bottom-6 inset-x-4 bg-black/60 backdrop-blur-md p-3.5 border border-white/5 rounded-2xl text-center">
+                          <p className="text-white text-sm font-semibold tracking-tight leading-relaxed">
+                            {currentStory.content}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div 
+                      className="w-full max-w-md h-full max-h-[70vh] rounded-3xl flex items-center justify-center p-6 border border-white/5 shadow-2xl relative"
+                      style={{ background: currentStory.bg_gradient || STORY_GRADIENTS[0] }}
+                    >
+                      <p className="text-white text-xl font-bold text-center leading-relaxed tracking-tight max-w-[280px]">
+                        {currentStory.content}
                       </p>
                     </div>
                   )}
                 </div>
-              ) : (
-                <div 
-                  className="w-full max-w-md h-full max-h-[70vh] rounded-3xl flex items-center justify-center p-6 border border-white/5 shadow-2xl relative"
-                  style={{ background: stories[activeStoryIndex].bg_gradient || STORY_GRADIENTS[0] }}
-                >
-                  <p className="text-white text-2xl font-black text-center leading-relaxed tracking-tight max-w-[280px]">
-                    {stories[activeStoryIndex].content}
-                  </p>
+
+                {/* Bottom navigation overlay */}
+                <div className="flex items-center justify-between px-6 py-6 z-10 bg-gradient-to-t from-black/90 to-transparent">
+                  <button 
+                    disabled={activeGroupIndex === 0 && activeSubStoryIndex === 0}
+                    onClick={() => {
+                      if (activeSubStoryIndex > 0) {
+                        setActiveSubStoryIndex(activeSubStoryIndex - 1);
+                      } else if (activeGroupIndex > 0) {
+                        setActiveGroupIndex(activeGroupIndex - 1);
+                        setActiveSubStoryIndex(groupedStories[activeGroupIndex - 1].stories.length - 1);
+                      }
+                    }}
+                    className="btn-glass p-2.5 rounded-xl text-white/60 hover:text-white disabled:opacity-20 transition-all"
+                  >
+                    <ArrowLeft size={16} />
+                  </button>
+
+                  <span className="text-[10px] text-white/40 tracking-wider font-semibold uppercase">
+                    Group {activeGroupIndex + 1} of {groupedStories.length}
+                  </span>
+
+                  <button 
+                    disabled={activeGroupIndex === groupedStories.length - 1 && activeSubStoryIndex === currentGroup.stories.length - 1}
+                    onClick={() => {
+                      if (activeSubStoryIndex < currentGroup.stories.length - 1) {
+                        setActiveSubStoryIndex(activeSubStoryIndex + 1);
+                      } else if (activeGroupIndex < groupedStories.length - 1) {
+                        setActiveGroupIndex(activeGroupIndex + 1);
+                        setActiveSubStoryIndex(0);
+                      }
+                    }}
+                    className="btn-glass p-2.5 rounded-xl text-white/60 hover:text-white disabled:opacity-20 transition-all"
+                  >
+                    <ArrowRight size={16} />
+                  </button>
                 </div>
-              )}
-            </div>
-
-            {/* Bottom Area: Controls */}
-            <div className="flex items-center justify-between px-6 py-6 z-10 bg-gradient-to-t from-black/80 to-transparent">
-              <button 
-                disabled={activeStoryIndex === 0}
-                onClick={() => setActiveStoryIndex(activeStoryIndex - 1)}
-                className="btn-glass p-2 rounded-xl text-white/60 hover:text-white disabled:opacity-20"
-              >
-                <ArrowLeft size={16} />
-              </button>
-
-              <span className="text-[10px] text-white/30 tracking-widest font-mono">
-                {activeStoryIndex + 1} OF {stories.length}
-              </span>
-
-              <button 
-                disabled={activeStoryIndex === stories.length - 1}
-                onClick={() => setActiveStoryIndex(activeStoryIndex + 1)}
-                className="btn-glass p-2 rounded-xl text-white/60 hover:text-white disabled:opacity-20"
-              >
-                <ArrowRight size={16} />
-              </button>
-            </div>
-          </div>
+              </div>
+            );
+          })()
         )}
       </AnimatePresence>
     </div>

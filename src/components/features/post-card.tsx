@@ -118,7 +118,16 @@ export function PostCard({ post }: PostCardProps) {
       {post.image_url && (
         <div className="px-4 pb-3">
           <div className="rounded-xl overflow-hidden border border-white/[0.05] bg-black/40">
-            <Image src={post.image_url} alt="Post image" width={600} height={400} className="w-full object-cover max-h-80" />
+            {post.image_url.match(/\.(mp4|webm|ogg|mov|m4v|quicktime)($|\?)/i) ? (
+              <video 
+                src={post.image_url} 
+                controls 
+                playsInline 
+                className="w-full max-h-80 object-cover rounded-xl"
+              />
+            ) : (
+              <Image src={post.image_url} alt="Post media" width={600} height={400} className="w-full object-cover max-h-80" />
+            )}
           </div>
         </div>
       )}
