@@ -280,7 +280,7 @@ export default function LiveCallPage() {
         // Add participant
         setParticipants((prev) => {
           if (prev.find((p) => p.userId === payload.userId)) return prev;
-          return [...prev, { userId: payload.userId, fullName: payload.fullName, profilePhoto: payload.profilePhoto, isMuted: false, isVideoOff: false }];
+          return [...prev, { userId: payload.userId, fullName: payload.fullName, profilePhoto: payload.profilePhoto, isMuted: false, isVideoOff: false, isLocal: false }];
         });
 
         // Create offer for the new user
