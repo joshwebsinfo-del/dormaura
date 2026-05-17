@@ -520,30 +520,6 @@ export default function ChatsPage() {
                         </div>
                       )}
 
-
-                  
-                  // Parse message type (Whisper, Borrow or Text)
-                  let isJson = false;
-                  let parsed: any = null;
-                  try {
-                    if (msg.content.startsWith("{")) {
-                      parsed = JSON.parse(msg.content);
-                      isJson = true;
-                    }
-                  } catch (e) {}
-
-                  return (
-                    <div key={msg.id} className={`flex gap-3 ${isMe ? "flex-row-reverse" : ""}`}>
-                      {!isMe && (
-                        <div className="w-8 h-8 shrink-0 rounded-full overflow-hidden bg-white/10 flex items-center justify-center">
-                          {activeRecipient.profile_photo ? (
-                            <Image src={activeRecipient.profile_photo} alt="" width={32} height={32} className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="text-xs font-bold text-white/50">{activeRecipient.full_name?.charAt(0)}</span>
-                          )}
-                        </div>
-                      )}
-
                       <div className={`flex flex-col ${isMe ? "items-end" : "items-start"} max-w-[75%]`}>
                         {!isMe && showAvatar && (
                           <span className="text-[10px] text-white/40 mb-1 ml-1 flex items-center gap-1">
@@ -634,6 +610,34 @@ export default function ChatsPage() {
                   const isMe = msg.sender_id === user?.id;
                   const showAvatar = i === directMessages.length - 1 || directMessages[i + 1].sender_id !== msg.sender_id;
 
+                  // Parse message type (Whisper, Borrow or Text)
+                  let isJson = false;
+                  let parsed: any = null;
+                  try {
+                    if (msg.content.startsWith("{")) {
+                      parsed = JSON.parse(msg.content);
+                      isJson = true;
+                    }
+                  } catch (e) {}
+
+                  return (
+                    <div key={msg.id} className={`flex gap-3 ${isMe ? "flex-row-reverse" : ""}`}>
+                      {!isMe && (
+                        <div className="w-8 h-8 shrink-0 rounded-full overflow-hidden bg-white/10 flex items-center justify-center">
+                          {activeRecipient.profile_photo ? (
+                            <Image src={activeRecipient.profile_photo} alt="" width={32} height={32} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-xs font-bold text-white/50">{activeRecipient.full_name?.charAt(0)}</span>
+                          )}
+                        </div>
+                      )}
+
+                      <div className={`flex flex-col ${isMe ? "items-end" : "items-start"} max-w-[75%]`}>
+                        {!isMe && showAvatar && (
+                          <span className="text-[10px] text-white/40 mb-1 ml-1 flex items-center gap-1">
+                            {activeRecipient.full_name}
+                          </span>
+                        )}
                         {isJson && parsed.type === "whisper" ? (
                           // A. WHISPER (Vanishing Message Bubble)
                           <WhisperBubble text={parsed.text} expiresAt={parsed.expiresAt} isMe={isMe} />
