@@ -755,5 +755,3 @@ function BorrowBubble({ item, endsAt, isMe, duration }: { item: string; endsAt: 
     </div>
   );
 }
-  );
-}
