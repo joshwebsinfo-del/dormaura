@@ -14,11 +14,13 @@ INSERT INTO storage.buckets (id, name, public) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- 2. Enable Storage RLS & Policies for public read and authenticated upload
+DROP POLICY IF EXISTS "Public read access for storage objects" ON storage.objects;
 CREATE POLICY "Public read access for storage objects"
   ON storage.objects FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Authenticated users can upload to storage objects" ON storage.objects;
 CREATE POLICY "Authenticated users can upload to storage objects"
   ON storage.objects FOR INSERT
   TO authenticated
@@ -26,6 +28,7 @@ CREATE POLICY "Authenticated users can upload to storage objects"
     bucket_id IN ('avatars', 'post-images', 'marketplace', 'lost-found', 'reels')
   );
 
+DROP POLICY IF EXISTS "Owners can delete their own storage objects" ON storage.objects;
 CREATE POLICY "Owners can delete their own storage objects"
   ON storage.objects FOR DELETE
   TO authenticated
