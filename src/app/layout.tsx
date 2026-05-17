@@ -63,10 +63,26 @@ export default function RootLayout({
                 var registerSW = function() {
                   navigator.serviceWorker.register('/sw.js').then(function(reg) {
                     console.log('SW registered successfully:', reg.scope);
+                    
+                    // Periodically poll the server for service worker updates every 15 seconds
+                    setInterval(function() {
+                      reg.update().catch(function() {});
+                    }, 15000);
                   }).catch(function(err) {
                     console.log('SW registration failed:', err);
                   });
                 };
+
+                // Trigger automatic real-time update when service worker activates
+                var refreshing = false;
+                navigator.serviceWorker.addEventListener('controllerchange', function() {
+                  if (!refreshing) {
+                    refreshing = true;
+                    console.log('New deployment detected! Reloading DormAura in real-time...');
+                    window.location.reload();
+                  }
+                });
+
                 if (document.readyState === 'complete' || document.readyState === 'interactive') {
                   registerSW();
                 } else {
