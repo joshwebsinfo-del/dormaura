@@ -414,9 +414,24 @@ export default function LiveCallPage() {
     }
   };
 
+  const leaveCallRef = useRef(leaveCall);
+  const inCallRef = useRef(inCall);
+
   useEffect(() => {
-    return () => { if (inCall) leaveCall(); };
-  }, [inCall, leaveCall]);
+    leaveCallRef.current = leaveCall;
+  }, [leaveCall]);
+
+  useEffect(() => {
+    inCallRef.current = inCall;
+  }, [inCall]);
+
+  useEffect(() => {
+    return () => {
+      if (inCallRef.current) {
+        leaveCallRef.current();
+      }
+    };
+  }, []);
 
   const allParticipants = inCall && user
     ? [
