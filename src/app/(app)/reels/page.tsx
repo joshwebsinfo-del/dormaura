@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Heart, Upload, Play, Volume2, VolumeX, MessageCircle, X, Send } from "lucide-react";
+import { Heart, Upload, Play, Volume2, VolumeX, MessageCircle, X, Send, Trash2 } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
 
@@ -186,6 +186,19 @@ function ReelItem({ reel, user, globalMuted, onToggleMute, onOpenComments }: any
     }
   };
 
+  const handleDelete = async () => {
+    if (reel.user_id !== user?.id && user?.role !== "admin") return;
+    const confirmDelete = window.confirm("Are you sure you want to delete this Reel?");
+    if (!confirmDelete) return;
+    try {
+      await supabase.from("reels").delete().eq("id", reel.id);
+      queryClient.invalidateQueries({ queryKey: ["reels"] });
+      toast.success("Reel deleted! 🗑️");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete Reel");
+    }
+  };
+
   return (
     <div ref={containerRef} className="relative h-full w-full snap-start bg-black">
       {/* Video Player */}
@@ -235,6 +248,17 @@ function ReelItem({ reel, user, globalMuted, onToggleMute, onOpenComments }: any
           </button>
           <span className="text-white font-bold text-sm drop-shadow-md">{reel.comments?.length || 0}</span>
         </div>
+        {(reel.user_id === user?.id || user?.role === "admin") && (
+          <div className="flex flex-col items-center gap-1">
+            <button onClick={handleDelete}
+              className="w-12 h-12 rounded-full bg-rose-500/20 backdrop-blur-md flex items-center justify-center border border-rose-500/30 text-rose-400 hover:bg-rose-500/30 transition-transform active:scale-90"
+              title="Delete Reel"
+            >
+              <Trash2 size={20} />
+            </button>
+            <span className="text-rose-400 font-bold text-xs drop-shadow-md">Delete</span>
+          </div>
+        )}
       </div>
 
       {/* Bottom Info */}

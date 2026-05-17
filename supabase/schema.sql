@@ -287,6 +287,11 @@ CREATE POLICY "Users can view all reels" ON reels
   FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Users can insert reels" ON reels
   FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users and admins can delete reels" ON reels
+  FOR DELETE TO authenticated USING (
+    auth.uid() = user_id OR 
+    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('admin','moderator'))
+  );
 
 -- reel_likes: anyone can view, users can insert/delete
 CREATE POLICY "Users can view all reel likes" ON reel_likes
@@ -437,6 +442,12 @@ CREATE POLICY "Polls viewable by authenticated" ON polls
 
 CREATE POLICY "Users can create polls" ON polls
   FOR INSERT TO authenticated WITH CHECK (auth.uid() = created_by);
+
+CREATE POLICY "Users and admins can delete polls" ON polls
+  FOR DELETE TO authenticated USING (
+    auth.uid() = created_by OR 
+    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('admin','moderator'))
+  );
 
 CREATE POLICY "Poll options viewable by authenticated" ON poll_options
   FOR SELECT TO authenticated USING (true);

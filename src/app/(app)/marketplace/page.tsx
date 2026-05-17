@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader, NeonBadge, LoadingSkeleton } from "@/components/ui/glass";
-import { ShoppingBag, Plus, X, Tag, Image as ImageIcon } from "lucide-react";
+import { ShoppingBag, Plus, X, Tag, Image as ImageIcon, Trash2 } from "lucide-react";
 import { formatTimeAgo } from "@/lib/utils";
 import Image from "next/image";
 import type { MarketplaceItem } from "@/types";
@@ -181,6 +181,13 @@ function MarketplaceCard({ item, index }: { item: MarketplaceItem; index: number
     toast.success("Marked as sold!");
   };
 
+  const handleDelete = async () => {
+    if (item.seller_id !== user?.id && user?.role !== "admin") return;
+    await supabase.from("marketplace_items").delete().eq("id", item.id);
+    queryClient.invalidateQueries({ queryKey: ["marketplace"] });
+    toast.success("Item deleted! 🗑️");
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -203,7 +210,12 @@ function MarketplaceCard({ item, index }: { item: MarketplaceItem; index: number
         <div className="flex items-center justify-between mt-2">
           <span className="text-cyan-400 font-bold text-sm">${item.price}</span>
           {item.seller_id === user?.id ? (
-            <button onClick={handleMarkSold} className="text-[10px] text-white/40 hover:text-rose-400 transition-colors">Mark Sold</button>
+            <div className="flex gap-2 items-center">
+              <button onClick={handleMarkSold} className="text-[10px] text-white/40 hover:text-emerald-400 transition-colors">Mark Sold</button>
+              <button onClick={handleDelete} className="text-[10px] text-rose-400/60 hover:text-rose-400 transition-colors" title="Delete Listing">
+                <Trash2 size={12} />
+              </button>
+            </div>
           ) : (
             <NeonBadge color="violet"><Tag size={9} /> Buy</NeonBadge>
           )}

@@ -9,9 +9,19 @@ import {
   Search,
   Star,
   MessageSquareQuote,
+  Crown,
 } from "lucide-react";
 
 const actions = [
+  {
+    id: "premium",
+    label: "Gold Pro",
+    icon: Crown,
+    href: "/premium",
+    color: "rgba(250,204,21,0.15)",
+    glow: "rgba(250,204,21,0.4)",
+    iconColor: "#facc15",
+  },
   {
     id: "directory",
     label: "Directory",

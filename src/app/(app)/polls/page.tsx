@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader, LoadingSkeleton } from "@/components/ui/glass";
-import { Star, Plus, X } from "lucide-react";
+import { Star, Plus, X, Trash2 } from "lucide-react";
 import { formatTimeAgo } from "@/lib/utils";
 import type { Poll, PollOption } from "@/types";
 import toast from "react-hot-toast";
@@ -156,6 +156,7 @@ function PollCard({ poll, index, currentUserId }: { poll: Poll; index: number; c
   const supabase = createClient();
   const queryClient = useQueryClient();
   const [voted, setVoted] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const totalVotes = poll.options?.reduce((sum, o) => sum + (o.votes || 0), 0) || 0;
 
@@ -170,17 +171,45 @@ function PollCard({ poll, index, currentUserId }: { poll: Poll; index: number; c
     toast.success("Vote recorded! 🗳️");
   };
 
+  const handleDelete = async () => {
+    if (isDeleting) return;
+    setIsDeleting(true);
+    try {
+      await supabase.from("polls").delete().eq("id", poll.id);
+      queryClient.invalidateQueries({ queryKey: ["polls"] });
+      toast.success("Poll deleted");
+    } catch (err: any) {
+      toast.error(err.message);
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.07 }}
-      className="glass rounded-2xl p-4"
+      className="glass rounded-2xl p-4 relative"
     >
-      <h3 className="text-white font-semibold text-base mb-1">{poll.question}</h3>
-      <p className="text-white/30 text-xs mb-4">
-        By {poll.creator?.full_name} · {formatTimeAgo(poll.created_at)} · {totalVotes} votes
-      </p>
+      <div className="flex justify-between items-start gap-4">
+        <div>
+          <h3 className="text-white font-semibold text-base mb-1">{poll.question}</h3>
+          <p className="text-white/30 text-xs mb-4">
+            By {poll.creator?.full_name} · {formatTimeAgo(poll.created_at)} · {totalVotes} votes
+          </p>
+        </div>
+        
+        {currentUserId === poll.created_by && (
+          <button 
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-rose-400/60 hover:text-rose-400 hover:bg-rose-500/10 transition-colors disabled:opacity-50"
+            title="Delete Poll"
+          >
+            <Trash2 size={16} />
+          </button>
+        )}
+      </div>
 
       <div className="space-y-2">
         {poll.options?.map((option) => {

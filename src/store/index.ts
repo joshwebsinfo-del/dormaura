@@ -4,14 +4,18 @@ import type { User } from "@/types";
 
 interface AuthState {
   user: User | null;
+  isPremium: boolean;
   setUser: (user: User | null) => void;
+  setPremium: (isPremium: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
+      isPremium: false,
       setUser: (user) => set({ user }),
+      setPremium: (isPremium) => set({ isPremium }),
     }),
     {
       name: "glassnest-auth",

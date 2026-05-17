@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader, NeonBadge, LoadingSkeleton } from "@/components/ui/glass";
-import { HelpCircle, Plus, X, Check } from "lucide-react";
+import { HelpCircle, Plus, X, Check, Trash2 } from "lucide-react";
 import { formatTimeAgo } from "@/lib/utils";
 import type { WhoHasRequest } from "@/types";
 import toast from "react-hot-toast";
@@ -66,6 +66,12 @@ export default function WhoHasPage() {
     await supabase.from("who_has_requests").update({ resolved: true }).eq("id", id);
     queryClient.invalidateQueries({ queryKey: ["who-has"] });
     toast.success("Marked as resolved! ✅");
+  };
+
+  const handleDelete = async (id: string) => {
+    await supabase.from("who_has_requests").delete().eq("id", id);
+    queryClient.invalidateQueries({ queryKey: ["who-has"] });
+    toast.success("Request deleted! 🗑️");
   };
 
   return (
@@ -156,6 +162,7 @@ export default function WhoHasPage() {
               index={i}
               currentUserId={user?.id}
               onResolve={handleResolve}
+              onDelete={handleDelete}
             />
           ))}
         </div>
@@ -171,12 +178,13 @@ export default function WhoHasPage() {
 }
 
 function WhoHasCard({
-  request, index, currentUserId, onResolve,
+  request, index, currentUserId, onResolve, onDelete,
 }: {
   request: WhoHasRequest;
   index: number;
   currentUserId?: string;
   onResolve: (id: string) => void;
+  onDelete: (id: string) => void;
 }) {
   return (
     <motion.div
@@ -204,12 +212,22 @@ function WhoHasCard({
           </div>
         </div>
         {request.user_id === currentUserId && (
-          <button
-            onClick={() => onResolve(request.id)}
-            className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center text-emerald-400 hover:bg-emerald-400/10 transition-all border border-emerald-400/20"
-          >
-            <Check size={14} />
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => onResolve(request.id)}
+              className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center text-emerald-400 hover:bg-emerald-400/10 transition-all border border-emerald-400/20"
+              title="Mark as Resolved"
+            >
+              <Check size={14} />
+            </button>
+            <button
+              onClick={() => onDelete(request.id)}
+              className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center text-rose-400 hover:bg-rose-400/10 transition-all border border-rose-400/20"
+              title="Delete Request"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
         )}
       </div>
     </motion.div>

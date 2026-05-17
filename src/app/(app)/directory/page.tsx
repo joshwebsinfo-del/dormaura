@@ -6,10 +6,11 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader, NeonBadge, LoadingSkeleton } from "@/components/ui/glass";
-import { User, Search, DoorOpen, MapPin } from "lucide-react";
+import { User, Search, DoorOpen, MapPin, MessageSquare } from "lucide-react";
 import { getMoodEmoji, getAvailabilityColor, getAvailabilityLabel } from "@/lib/utils";
 import { useNotificationStore } from "@/store";
 import Image from "next/image";
+import Link from "next/link";
 import type { User as UserType } from "@/types";
 import toast from "react-hot-toast";
 
@@ -185,28 +186,39 @@ function StudentCard({
         )}
       </div>
 
-      {/* Knock button */}
+      {/* Actions */}
       {!isMe && (
-        <motion.button
-          id={`knock-${student.id}`}
-          onClick={handleKnock}
-          disabled={knocking}
-          whileTap={{ scale: 0.85 }}
-          animate={knocking ? { scale: [1, 1.1, 1], rotate: [-5, 5, -5, 0] } : {}}
-          transition={{ duration: 0.4 }}
-          className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all"
-          style={{
-            background: knocking
-              ? "rgba(0,245,255,0.2)"
-              : "rgba(255,255,255,0.06)",
-            border: knocking
-              ? "1px solid rgba(0,245,255,0.4)"
-              : "1px solid rgba(255,255,255,0.08)",
-            boxShadow: knocking ? "0 0 12px rgba(0,245,255,0.3)" : "none",
-          }}
-        >
-          <DoorOpen size={16} className={knocking ? "text-cyan-400" : "text-white/40"} />
-        </motion.button>
+        <div className="flex gap-2 flex-shrink-0">
+          <Link href={`/chats?userId=${student.id}`}>
+            <motion.button
+              whileTap={{ scale: 0.85 }}
+              className="w-9 h-9 rounded-xl flex items-center justify-center transition-all bg-white/5 border border-white/10 hover:border-cyan-500/30 text-white/40 hover:text-cyan-400 hover:bg-cyan-500/10"
+              title="Chat"
+            >
+              <MessageSquare size={16} />
+            </motion.button>
+          </Link>
+          <motion.button
+            id={`knock-${student.id}`}
+            onClick={handleKnock}
+            disabled={knocking}
+            whileTap={{ scale: 0.85 }}
+            animate={knocking ? { scale: [1, 1.1, 1], rotate: [-5, 5, -5, 0] } : {}}
+            transition={{ duration: 0.4 }}
+            className="w-9 h-9 rounded-xl flex items-center justify-center transition-all"
+            style={{
+              background: knocking
+                ? "rgba(0,245,255,0.2)"
+                : "rgba(255,255,255,0.06)",
+              border: knocking
+                ? "1px solid rgba(0,245,255,0.4)"
+                : "1px solid rgba(255,255,255,0.08)",
+              boxShadow: knocking ? "0 0 12px rgba(0,245,255,0.3)" : "none",
+            }}
+          >
+            <DoorOpen size={16} className={knocking ? "text-cyan-400" : "text-white/40"} />
+          </motion.button>
+        </div>
       )}
     </motion.div>
   );
