@@ -247,40 +247,60 @@ export default function HomePage() {
   const handlePostSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!postContent.trim() && !postImage) || !user) return;
-    setPostLoading(true);
 
-    try {
-      let media_url: string | null = null;
-      if (postImage) {
-        const ext = postImage.name.split(".").pop();
-        const filename = `${user.id}/${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage
-          .from("post-images")
-          .upload(filename, postImage, { cacheControl: "3600" });
-        if (uploadError) throw uploadError;
-        const { data: { publicUrl } } = supabase.storage.from("post-images").getPublicUrl(filename);
-        media_url = publicUrl;
+    // Capture inputs for the background task
+    const content = postContent.trim();
+    const imageFile = postImage;
+
+    // Instantly return the user to the home screen (clear input & close modal)
+    setPostContent("");
+    setPostImage(null);
+    setPostImagePreview(null);
+    setPostModalOpen(false);
+
+    // Display high-fidelity loading toast for background progress
+    const toastId = toast.loading("Nesting your post in the background...", {
+      icon: "🚀",
+      style: {
+        background: "rgba(5, 5, 8, 0.95)",
+        color: "#fff",
+        border: "1px solid rgba(6, 182, 212, 0.25)",
+        backdropFilter: "blur(12px)",
+        borderRadius: "16px",
+        fontSize: "13px",
+        fontWeight: "600",
       }
+    });
 
-      const { error } = await supabase.from("posts").insert({
-        user_id: user.id,
-        content: postContent.trim() || "",
-        image_url: media_url // Store video OR image public URL inside image_url column
-      });
-      if (error) throw error;
+    // Execute upload & insert asynchronously in the background
+    (async () => {
+      try {
+        let media_url: string | null = null;
+        if (imageFile) {
+          const ext = imageFile.name.split(".").pop();
+          const filename = `${user.id}/${Date.now()}.${ext}`;
+          const { error: uploadError } = await supabase.storage
+            .from("post-images")
+            .upload(filename, imageFile, { cacheControl: "3600" });
+          if (uploadError) throw uploadError;
+          const { data: { publicUrl } } = supabase.storage.from("post-images").getPublicUrl(filename);
+          media_url = publicUrl;
+        }
 
-      setPostContent("");
-      setPostImage(null);
-      setPostImagePreview(null);
-      setPostModalOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["feed"] });
-      toast.success("Post nested successfully! 🚀");
-    } catch (err: any) {
-      console.error("Post creation error details:", err);
-      toast.error(err.message || "Failed to publish post.");
-    } finally {
-      setPostLoading(false);
-    }
+        const { error } = await supabase.from("posts").insert({
+          user_id: user.id,
+          content: content || "",
+          image_url: media_url // Store video OR image public URL inside image_url column
+        });
+        if (error) throw error;
+
+        queryClient.invalidateQueries({ queryKey: ["feed"] });
+        toast.success("Post nested successfully! 🎉", { id: toastId });
+      } catch (err: any) {
+        console.error("Background post creation error details:", err);
+        toast.error(err.message || "Failed to publish post.", { id: toastId });
+      }
+    })();
   };
 
   // Story creation logic

@@ -658,9 +658,14 @@ function ParticipantTile({
 }) {
   const setVideoRef = useCallback((el: HTMLVideoElement | null) => {
     if (el && participant.stream) {
-      el.srcObject = participant.stream;
+      if (el.srcObject !== participant.stream) {
+        el.srcObject = participant.stream;
+      }
     }
-  }, [participant.stream]);
+    if (isLocal && localVideoRef && el) {
+      (localVideoRef as any).current = el;
+    }
+  }, [participant.stream, isLocal, localVideoRef]);
 
   return (
     <motion.div
@@ -685,10 +690,7 @@ function ParticipantTile({
         </div>
       ) : (
         <video
-          ref={isLocal ? (el) => {
-            if (localVideoRef) (localVideoRef as any).current = el;
-            setVideoRef(el);
-          } : setVideoRef}
+          ref={setVideoRef}
           autoPlay
           playsInline
           muted={isLocal}
