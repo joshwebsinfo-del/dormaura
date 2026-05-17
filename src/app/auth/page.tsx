@@ -65,8 +65,8 @@ export default function AuthPage() {
         await supabase.from("users").update({ role: "admin" }).eq("id", data.user.id);
       }
 
-      toast.success("Welcome back to GlassNest! 🏠");
-      router.push("/");
+      toast.success("Welcome back to DormAura! 🏠");
+      router.push("/home");
     } catch (err: any) {
       toast.error(err.message || "Sign in failed");
     } finally {
@@ -147,10 +147,10 @@ export default function AuthPage() {
             <Zap size={28} className="text-cyan-400" />
           </motion.div>
           <h1 className="font-display font-bold text-3xl text-white">
-            Glass<span className="text-cyan-400">Nest</span>
+            Dorm<span className="text-cyan-400">Aura</span>
           </h1>
           <p className="text-white/40 text-sm mt-1">
-            Your private boarding house ecosystem
+            Your boarding house ecosystem ✨
           </p>
         </div>
 
@@ -332,7 +332,7 @@ export default function AuthPage() {
         </div>
 
         <p className="text-center text-white/20 text-xs mt-6">
-          GlassNest © 2025 — Private boarding house ecosystem
+          DormAura © 2025 — Your boarding house ecosystem
         </p>
       </motion.div>
     </div>

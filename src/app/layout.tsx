@@ -17,16 +17,21 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "GlassNest — Private Boarding House",
+  title: "DormAura — Your Boarding House Ecosystem",
   description:
-    "A futuristic digital ecosystem for boarding house students. Connect, collaborate, and thrive in your private nest.",
+    "Connect with your dorm mates — posts, polls, live calls, marketplace & more. Your private boarding house social platform.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "GlassNest",
+    title: "DormAura",
   },
-  keywords: ["boarding house", "student platform", "GlassNest", "private social"],
+  keywords: ["boarding house", "student platform", "DormAura", "dorm social", "house call"],
+  openGraph: {
+    title: "DormAura",
+    description: "Your private boarding house ecosystem",
+    type: "website",
+  },
 };
 
 export const viewport: Viewport = {
@@ -49,6 +54,21 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="DormAura" />
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js').catch(function(err) {
+                    console.log('SW registration failed:', err);
+                  });
+                });
+              }
+            `,
+          }}
+        />
       </head>
       <body
         className={`${inter.variable} ${outfit.variable} font-sans antialiased bg-nest-black min-h-screen overflow-x-hidden`}

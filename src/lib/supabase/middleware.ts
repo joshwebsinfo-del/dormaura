@@ -25,7 +25,7 @@ export async function updateSession(request: NextRequest) {
   const url = request.nextUrl.clone();
 
   // Public routes that don't require auth
-  const publicPaths = ["/auth", "/auth/callback"];
+  const publicPaths = ["/auth", "/auth/callback", "/polls", "/who-has"];
   const isPublic = publicPaths.some((p) => url.pathname.startsWith(p));
 
   if (!user && !isPublic) {

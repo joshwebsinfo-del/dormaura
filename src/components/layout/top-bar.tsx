@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Bell, Search, Zap } from "lucide-react";
+import { Bell, Search, Zap, Radio } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useState } from "react";
@@ -30,7 +30,7 @@ export function TopBar({ title }: { title?: string }) {
             <Zap size={18} className="text-cyan-400" />
           </div>
           <span className="font-display font-bold text-white text-base tracking-tight">
-            Glass<span className="text-cyan-400">Nest</span>
+            Dorm<span className="text-cyan-400">Aura</span>
           </span>
         </button>
 
@@ -41,6 +41,19 @@ export function TopBar({ title }: { title?: string }) {
             className="w-9 h-9 rounded-xl glass-sm flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all">
             <Search size={17} />
           </button>
+
+          {/* House Live Call button */}
+          <motion.button
+            onClick={() => router.push("/live-call")}
+            animate={{ boxShadow: ["0 0 0px rgba(239,68,68,0)", "0 0 12px rgba(239,68,68,0.5)", "0 0 0px rgba(239,68,68,0)"] }}
+            transition={{ repeat: Infinity, duration: 2 }}
+            className="relative w-9 h-9 rounded-xl glass-sm flex items-center justify-center text-rose-400 hover:bg-rose-500/10 transition-all"
+            title="House Live Call"
+          >
+            <Radio size={17} />
+            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping opacity-75" />
+            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-rose-500" />
+          </motion.button>
 
           <button onClick={() => router.push("/notices")}
             className="relative w-9 h-9 rounded-xl glass-sm flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all">

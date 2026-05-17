@@ -1,13 +1,45 @@
 {
-  "name": "GlassNest",
-  "short_name": "GlassNest",
-  "description": "Private digital ecosystem for boarding house students",
-  "start_url": "/",
+  "name": "DormAura",
+  "short_name": "DormAura",
+  "description": "Your private boarding house ecosystem — posts, polls, live calls & more",
+  "start_url": "/home",
   "display": "standalone",
   "background_color": "#050508",
   "theme_color": "#050508",
-  "orientation": "portrait",
-  "icons": [],
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
   "screenshots": [],
-  "categories": ["social", "lifestyle"]
+  "categories": ["social", "lifestyle", "communication"],
+  "shortcuts": [
+    {
+      "name": "Home Feed",
+      "url": "/home",
+      "description": "See what's happening in the dorm"
+    },
+    {
+      "name": "House Call",
+      "url": "/live-call",
+      "description": "Join the live group call"
+    },
+    {
+      "name": "Polls",
+      "url": "/polls",
+      "description": "Vote on dorm polls"
+    }
+  ]
 }
