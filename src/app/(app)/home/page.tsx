@@ -7,12 +7,12 @@ import { GlassCard, LoadingSkeleton, NeonBadge } from "@/components/ui/glass";
 import { PostCard } from "@/components/features/post-card";
 import { MoodBar } from "@/components/features/mood-bar";
 import { QuickActions } from "@/components/features/quick-actions";
-import type { Post, User as UserType } from "@/types";
+import type { Post, User as UserType, ActiveLive } from "@/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useRef } from "react";
 import { 
   Sparkles, Plus, Image as ImageIcon, Video, ShoppingBag, 
-  X, Send, ArrowLeft, ArrowRight, Heart, MessageCircle, Clock, Music, Download
+  X, Send, ArrowLeft, ArrowRight, Heart, MessageCircle, Clock, Music, Download, Radio
 } from "lucide-react";
 import Image from "next/image";
 import toast from "react-hot-toast";
@@ -129,6 +129,20 @@ export default function HomePage() {
       if (error) return [];
       return data as unknown as Story[];
     },
+  });
+
+  // Query Active Lives
+  const { data: activeLives } = useQuery<ActiveLive[]>({
+    queryKey: ["active-lives"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("active_lives")
+        .select("*, host:users(*)")
+        .eq("is_active", true);
+      if (error) return [];
+      return data as unknown as ActiveLive[];
+    },
+    refetchInterval: 10000, // Poll every 10 seconds for lives
   });
 
   // Realtime updates
@@ -388,6 +402,51 @@ export default function HomePage() {
           </button>
         </motion.div>
       )}
+
+      {/* Live Stream Alerts */}
+      <AnimatePresence>
+        {activeLives && activeLives.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="relative rounded-2xl overflow-hidden p-[2px]"
+          >
+            {/* Animated neon border */}
+            <div className="absolute inset-0 bg-gradient-to-r from-red-500 via-rose-500 to-red-500 animate-[spin_3s_linear_infinite]" />
+            <div className="relative bg-black/90 backdrop-blur-xl rounded-[14px] p-3 flex flex-col gap-2">
+              <div className="flex items-center gap-2 text-red-500">
+                <Radio size={16} className="animate-pulse" />
+                <span className="text-xs font-bold uppercase tracking-widest">Live Now</span>
+              </div>
+              <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-1">
+                {activeLives.map((live) => (
+                  <button 
+                    key={live.id}
+                    onClick={() => window.location.href = `/live-call?room=${live.channel_id}`}
+                    className="flex-shrink-0 flex items-center gap-3 bg-white/5 hover:bg-white/10 rounded-xl p-2 pr-4 transition-colors border border-white/10"
+                  >
+                    <div className="relative">
+                      {live.host?.profile_photo ? (
+                        <Image src={live.host.profile_photo} alt={live.host.full_name} width={36} height={36} className="rounded-full border border-red-500/50" />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-red-500/20 flex items-center justify-center text-red-400 font-bold border border-red-500/50">
+                          {live.host?.full_name?.charAt(0)}
+                        </div>
+                      )}
+                      <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-black animate-pulse" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-white text-sm font-bold truncate max-w-[120px]">{live.title}</p>
+                      <p className="text-white/50 text-[10px] truncate max-w-[120px]">with {live.host?.full_name.split(' ')[0]}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Facebook Grouped Stories Tray */}
       <div className="relative">

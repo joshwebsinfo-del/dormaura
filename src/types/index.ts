@@ -201,3 +201,14 @@ export interface ReelLike {
   user_id: string;
   reel_id: string;
 }
+
+export interface ActiveLive {
+  id: string;
+  host_id: string;
+  title: string;
+  channel_id: string;
+  viewer_count: number;
+  started_at: string;
+  is_active: boolean;
+  host?: User;
+}

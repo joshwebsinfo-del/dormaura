@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader, NeonBadge, LoadingSkeleton } from "@/components/ui/glass";
-import { HelpCircle, Plus, X, Check, Trash2 } from "lucide-react";
+import { HelpCircle, Plus, X, Check, Trash2, MessageCircle } from "lucide-react";
 import { formatTimeAgo } from "@/lib/utils";
 import type { WhoHasRequest } from "@/types";
 import toast from "react-hot-toast";
@@ -211,7 +211,7 @@ function WhoHasCard({
             <span className="text-white/20 text-xs">· {formatTimeAgo(request.created_at)}</span>
           </div>
         </div>
-        {request.user_id === currentUserId && (
+        {request.user_id === currentUserId ? (
           <div className="flex gap-2">
             <button
               onClick={() => onResolve(request.id)}
@@ -226,6 +226,15 @@ function WhoHasCard({
               title="Delete Request"
             >
               <Trash2 size={14} />
+            </button>
+          </div>
+        ) : (
+          <div className="flex">
+            <button 
+              onClick={() => window.location.href = `/chats?userId=${request.user_id}`}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold text-emerald-400 bg-emerald-400/10 hover:bg-emerald-400/20 border border-emerald-400/20 transition-all active:scale-95"
+            >
+              <MessageCircle size={12} /> Chat to Fulfil
             </button>
           </div>
         )}

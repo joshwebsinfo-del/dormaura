@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/store";
 import { useQueryClient } from "@tanstack/react-query";
@@ -176,30 +177,39 @@ export function PostCard({ post }: PostCardProps) {
         </div>
       </div>
 
-      {/* Static Comments (No animation) */}
-      {showComments && (
-        <div className="border-t border-white/[0.05] bg-black/20 p-3">
-          <div className="space-y-3 mb-3 max-h-40 overflow-y-auto custom-scrollbar">
-            {post.comments?.map(c => (
-              <div key={c.id} className="flex gap-2">
-                <div className="w-6 h-6 rounded-full bg-white/10 shrink-0 overflow-hidden">
-                   {c.user?.profile_photo ? <Image src={c.user.profile_photo} alt="" width={24} height={24} className="w-full h-full object-cover" /> : null}
-                </div>
-                <div>
-                  <span className="text-white/80 text-xs font-bold mr-2">{c.user?.full_name}</span>
-                  <span className="text-white/70 text-sm">{c.content}</span>
-                </div>
+      {/* Animated Inline Comments Drawer */}
+      <AnimatePresence>
+        {showComments && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="border-t border-white/[0.05] bg-black/20 overflow-hidden"
+          >
+            <div className="p-3">
+              <div className="space-y-3 mb-3 max-h-40 overflow-y-auto custom-scrollbar">
+                {post.comments?.map(c => (
+                  <div key={c.id} className="flex gap-2">
+                    <div className="w-6 h-6 rounded-full bg-white/10 shrink-0 overflow-hidden">
+                       {c.user?.profile_photo ? <Image src={c.user.profile_photo} alt="" width={24} height={24} className="w-full h-full object-cover" /> : null}
+                    </div>
+                    <div>
+                      <span className="text-white/80 text-xs font-bold mr-2">{c.user?.full_name}</span>
+                      <span className="text-white/70 text-sm">{c.content}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <form onSubmit={handleComment} className="flex gap-2">
-            <input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Write a comment..." className="flex-1 input-glass text-sm py-2 px-3 rounded-xl" />
-            <button type="submit" disabled={!comment.trim()} className="px-4 py-2 rounded-xl text-sm font-bold bg-cyan-500 text-black disabled:opacity-50 hover:bg-cyan-400 transition-colors">
-              Post
-            </button>
-          </form>
-        </div>
-      )}
+              <form onSubmit={handleComment} className="flex gap-2">
+                <input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Write a comment..." className="flex-1 input-glass text-sm py-2 px-3 rounded-xl" />
+                <button type="submit" disabled={!comment.trim()} className="px-4 py-2 rounded-xl text-sm font-bold bg-cyan-500 text-black disabled:opacity-50 hover:bg-cyan-400 transition-colors">
+                  Post
+                </button>
+              </form>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

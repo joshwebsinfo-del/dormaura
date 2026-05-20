@@ -29,8 +29,6 @@ const ICE_SERVERS = {
   ],
 };
 
-const CALL_ROOM = "dorm-house-call";
-
 export default function LiveCallPage() {
   const { user } = useAuthStore();
   const supabase = createClient();
@@ -46,11 +44,13 @@ export default function LiveCallPage() {
   // Load active stream on mount or when call status transitions
   useEffect(() => {
     const fetchActiveStream = async () => {
+      const room = new URLSearchParams(window.location.search).get("room");
+      if (!room) return;
       const { data } = await supabase
-        .from("live_streams")
+        .from("active_lives")
         .select("*")
         .eq("is_active", true)
-        .eq("room_name", CALL_ROOM);
+        .eq("channel_id", room);
       if (data && data.length > 0) {
         setStreamRecord(data[0]);
       }
@@ -178,8 +178,8 @@ export default function LiveCallPage() {
     // Check if host is leaving and mark live stream in DB as inactive
     if (streamRecord && user && streamRecord.host_id === user.id) {
       supabase
-        .from("live_streams")
-        .update({ is_active: false, ended_at: new Date().toISOString() })
+        .from("active_lives")
+        .update({ is_active: false })
         .eq("id", streamRecord.id)
         .then(() => {});
     }
@@ -215,20 +215,27 @@ export default function LiveCallPage() {
         localVideoRef.current.srcObject = stream;
       }
 
-      // Check live_streams table: if no active room exists, create one as the host!
+      // Check active_lives table: if no active room exists, create one as the host!
       let activeStreamRec = null;
+      let room = new URLSearchParams(window.location.search).get("room");
+      if (!room) {
+        room = "room_" + Math.random().toString(36).substring(7);
+        window.history.replaceState({}, "", `?room=${room}`);
+      }
+
       const { data: activeStreams } = await supabase
-        .from("live_streams")
+        .from("active_lives")
         .select("*")
         .eq("is_active", true)
-        .eq("room_name", CALL_ROOM);
+        .eq("channel_id", room);
 
       if (!activeStreams || activeStreams.length === 0) {
         const { data: newStream } = await supabase
-          .from("live_streams")
+          .from("active_lives")
           .insert({
             host_id: user.id,
-            room_name: CALL_ROOM,
+            title: `${user.full_name.split(' ')[0]}'s Live Room`,
+            channel_id: room,
             is_active: true
           })
           .select()
@@ -244,7 +251,7 @@ export default function LiveCallPage() {
       }
 
       // Set up signaling channel
-      const channel = supabase.channel(CALL_ROOM);
+      const channel = supabase.channel(room);
       channelRef.current = channel;
 
       // Handle offers from new joiners

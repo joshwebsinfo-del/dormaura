@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader, NeonBadge, LoadingSkeleton } from "@/components/ui/glass";
-import { ShoppingBag, Plus, X, Tag, Image as ImageIcon, Trash2 } from "lucide-react";
+import { ShoppingBag, Plus, X, Tag, Image as ImageIcon, Trash2, MessageCircle } from "lucide-react";
 import { formatTimeAgo } from "@/lib/utils";
 import Image from "next/image";
 import type { MarketplaceItem } from "@/types";
@@ -217,7 +217,12 @@ function MarketplaceCard({ item, index }: { item: MarketplaceItem; index: number
               </button>
             </div>
           ) : (
-            <NeonBadge color="violet"><Tag size={9} /> Buy</NeonBadge>
+            <button 
+              onClick={() => window.location.href = `/chats?userId=${item.seller_id}`}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold text-white bg-violet-500/20 hover:bg-violet-500/40 border border-violet-500/30 transition-all active:scale-95"
+            >
+              <MessageCircle size={12} className="text-violet-400" /> Chat to Buy
+            </button>
           )}
         </div>
         <p className="text-white/20 text-[10px] mt-1.5">{item.seller?.full_name}</p>
